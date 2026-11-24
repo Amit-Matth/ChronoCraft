@@ -1,0 +1,6 @@
+{
+  "name": "ChronoCraft",
+  "description": "Custom resizable home screen clock widgets studio with analog, digital, and word clock styles, custom fonts, color palettes, and live wallpaper preview.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

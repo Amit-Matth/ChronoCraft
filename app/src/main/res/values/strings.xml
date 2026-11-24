@@ -1,0 +1,20 @@
+<resources>
+    <string name="app_name">ChronoCraft</string>
+    <string name="configure_widget_title">Configure Clock Widget</string>
+    <string name="widget_any_label">ChronoCraft Custom (Any Size)</string>
+    <string name="widget_analog_label">ChronoCraft Analog Dial (2×2)</string>
+    <string name="widget_wide_label">ChronoCraft Wide Banner (4×1)</string>
+    <string name="widget_any_desc">Resizable clock widget supporting digital, analog, and word clock styles at any size.</string>
+    <string name="widget_analog_desc">Square resizable analog timepiece with custom hands, dials, and fonts.</string>
+    <string name="widget_wide_desc">Sleek horizontal clock strip for minimal home screen setups.</string>
+    <string name="widget_clock_desc">Custom ChronoCraft clock widget</string>
+
+    <string name="nav_library">Library</string>
+    <string name="nav_studio">Studio</string>
+    <string name="nav_preview">Preview</string>
+    <string name="nav_saved">My Widgets</string>
+
+    <string name="cta_pin_widget">Add to Home Screen</string>
+    <string name="cta_save_preset">Save Preset</string>
+    <string name="cta_apply_widget">Apply to Widget</string>
+</resources>

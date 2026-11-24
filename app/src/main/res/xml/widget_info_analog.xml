@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
+    android:configure="com.example.ui.widgetconfig.WidgetConfigureActivity"
+    android:description="@string/widget_analog_desc"
+    android:initialLayout="@layout/widget_chrono_clock"
+    android:maxResizeHeight="600dp"
+    android:maxResizeWidth="600dp"
+    android:minHeight="110dp"
+    android:minResizeHeight="100dp"
+    android:minResizeWidth="100dp"
+    android:minWidth="110dp"
+    android:resizeMode="horizontal|vertical"
+    android:targetCellHeight="2"
+    android:targetCellWidth="2"
+    android:updatePeriodMillis="1800000"
+    android:widgetCategory="home_screen"
+    android:widgetFeatures="reconfigurable|configuration_optional" />
