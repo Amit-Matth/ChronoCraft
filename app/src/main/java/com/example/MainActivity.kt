@@ -26,10 +26,12 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Apps
 import androidx.compose.material.icons.outlined.Bookmarks
 import androidx.compose.material.icons.outlined.GridView
 import androidx.compose.material.icons.outlined.PhoneAndroid
 import androidx.compose.material.icons.outlined.Tune
+import androidx.compose.material.icons.rounded.Apps
 import androidx.compose.material.icons.rounded.Bookmarks
 import androidx.compose.material.icons.rounded.GridView
 import androidx.compose.material.icons.rounded.PhoneAndroid
@@ -52,6 +54,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -62,8 +65,10 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.example.model.AppThemeMode
 import com.example.model.WallpaperOption
+import com.example.ui.screens.AodExperienceScreen
 import com.example.ui.screens.ClockBuilderSheet
 import com.example.ui.screens.HomePreviewScreen
+import com.example.ui.screens.IconPackStudioScreen
 import com.example.ui.screens.LibraryScreen
 import com.example.ui.screens.OnboardingScreen
 import com.example.ui.screens.SavedWidgetsScreen
@@ -80,8 +85,9 @@ private enum class ChronoDestination(
 ) {
   LIBRARY("library", "Library", Icons.Rounded.GridView, Icons.Outlined.GridView),
   STUDIO("studio", "Studio", Icons.Rounded.Tune, Icons.Outlined.Tune),
+  ICONS("icons", "Icons", Icons.Rounded.Apps, Icons.Outlined.Apps),
   PREVIEW("preview", "Preview", Icons.Rounded.PhoneAndroid, Icons.Outlined.PhoneAndroid),
-  SAVED("saved", "My Widgets", Icons.Rounded.Bookmarks, Icons.Outlined.Bookmarks);
+  SAVED("saved", "Saved", Icons.Rounded.Bookmarks, Icons.Outlined.Bookmarks);
 
   companion object {
     fun indexOfRoute(route: String?): Int =
@@ -130,6 +136,7 @@ fun ChronoCraftRoot(
   ChronoCraftTheme(darkTheme = darkTheme) {
     val screenPhase = when {
       !uiState.isPrefsLoaded -> 0
+      uiState.showAodExperience -> 3
       !uiState.onboardingCompleted -> 1
       else -> 2
     }
@@ -137,8 +144,8 @@ fun ChronoCraftRoot(
     AnimatedContent(
       targetState = screenPhase,
       transitionSpec = {
-        (fadeIn(tween(340)) + scaleIn(initialScale = 0.97f, animationSpec = tween(340))) togetherWith
-          fadeOut(tween(240))
+        (fadeIn(tween(320)) + scaleIn(initialScale = 0.97f, animationSpec = tween(320))) togetherWith
+          fadeOut(tween(220))
       },
       label = "root_onboarding_gate",
     ) { phase ->
@@ -149,6 +156,14 @@ fun ChronoCraftRoot(
           weather = uiState.weather,
           onSelectThemeMode = viewModel::setAppThemeMode,
           onComplete = viewModel::completeOnboarding,
+        )
+        3 -> AodExperienceScreen(
+          config = uiState.activeConfig,
+          weather = uiState.weather,
+          aodSettings = uiState.aodSettings,
+          onUpdateAodSettings = viewModel::updateAodSettings,
+          onSwitchClockStyle = { styleId -> viewModel.switchStyleInStudio(styleId, keepColors = true) },
+          onExit = viewModel::closeAodExperience,
         )
         else -> ChronoCraftMainShell(uiState = uiState, viewModel = viewModel)
       }
@@ -206,7 +221,7 @@ private fun ChronoCraftMainShell(
   }
 
   BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
-    val useRail = maxWidth >= 640.dp
+    val useRail = maxWidth >= 600.dp
 
     Scaffold(
       contentWindowInsets = WindowInsets.safeDrawing,
@@ -225,7 +240,7 @@ private fun ChronoCraftMainShell(
                     contentDescription = dest.label,
                   )
                 },
-                label = { Text(dest.label, maxLines = 1) },
+                label = { Text(dest.label, maxLines = 1, overflow = TextOverflow.Ellipsis) },
                 modifier = Modifier.testTag("nav_${dest.route}"),
               )
             }
@@ -358,6 +373,7 @@ private fun ChronoCraftMainShell(
                 viewModel.setWallpaper(next)
               },
               onOpenFullPreview = { navigateTo(ChronoDestination.PREVIEW.route) },
+              onOpenAodExperience = viewModel::openAodExperience,
               onSavePreset = viewModel::saveCurrentAsPreset,
               onPinWidget = viewModel::requestPinCurrentWidget,
               onApplyToActiveWidget = viewModel::applyConfigToHomeWidget,
@@ -369,14 +385,36 @@ private fun ChronoCraftMainShell(
             )
           }
 
+          composable(ChronoDestination.ICONS.route) {
+            IconPackStudioScreen(
+              uiState = uiState,
+              onUpdateConfig = viewModel::updateIconPackConfig,
+              onApplyPreset = viewModel::applyIconPackPreset,
+              onSyncWithClock = viewModel::syncIconPackWithActiveClock,
+              onRefreshApps = viewModel::loadInstalledApps,
+              onSaveAppOverride = viewModel::saveAppIconOverride,
+              onClearAppOverride = viewModel::clearAppIconOverride,
+              onPinAppToHome = viewModel::pinAppIconToHome,
+              onSelectExternalPack = viewModel::selectExternalIconPack,
+              onImportZipPack = viewModel::importZipIconPack,
+              onRemoveImportedPack = viewModel::removeImportedPack,
+              onSelectSuperIconApp = viewModel::selectSuperIconApp,
+              onUpdateSuperIconConfig = viewModel::updateSuperIconConfig,
+              onPinSuperIcon = viewModel::requestPinSuperIconWidget,
+            )
+          }
+
           composable(ChronoDestination.PREVIEW.route) {
             HomePreviewScreen(
               uiState = uiState,
               onSelectDisplayMode = viewModel::selectDisplayMode,
               onSelectWallpaper = viewModel::setWallpaper,
+              onSelectLiveWallpaperTarget = viewModel::setLiveWallpaperTarget,
               onSelectSizePreset = viewModel::setPreviewSizePreset,
               onSetGrid = viewModel::setPreviewGrid,
               onSetTimeTravel = viewModel::setTimeTravel,
+              onOpenAodExperience = viewModel::openAodExperience,
+              onOpenIconPackStudio = { navigateTo(ChronoDestination.ICONS.route) },
               onOpenStudio = { navigateTo(ChronoDestination.STUDIO.route) },
               onPinWidget = viewModel::requestPinCurrentWidget,
             )
@@ -400,6 +438,8 @@ private fun ChronoCraftMainShell(
               onOpenLibrary = { navigateTo(ChronoDestination.LIBRARY.route) },
               onSelectThemeMode = viewModel::setAppThemeMode,
               onReplayOnboarding = viewModel::replayOnboarding,
+              onOpenAodExperience = viewModel::openAodExperience,
+              onOpenIconPackStudio = { navigateTo(ChronoDestination.ICONS.route) },
             )
           }
         }

@@ -15,6 +15,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -31,8 +32,10 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowForward
 import androidx.compose.material.icons.rounded.AutoAwesome
@@ -230,21 +233,25 @@ private fun OnboardingHeroPage(
   val analogCfg = remember { ClockPresets.defaultConfigForStyle(ClockStyleId.FLOATING_ANALOG_PURE) }
   val digitalCfg = remember { ClockPresets.defaultConfigForStyle(ClockStyleId.WEIGHT_STACK_FLOAT) }
 
-  Column(
-    modifier = Modifier.fillMaxSize().padding(vertical = 8.dp),
-    horizontalAlignment = Alignment.CenterHorizontally,
-    verticalArrangement = Arrangement.Center,
+  BoxWithConstraints(
+    modifier = Modifier.fillMaxSize().padding(vertical = 4.dp),
   ) {
-    Surface(
-      shape = RoundedCornerShape(30.dp),
-      color = Color(0xFF0A0F1D),
-      tonalElevation = 6.dp,
-      modifier =
-        Modifier
-          .fillMaxWidth()
-          .height(272.dp)
-          .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.6f), RoundedCornerShape(30.dp)),
+    val cardH = (maxHeight * 0.56f).coerceIn(170.dp, 272.dp)
+    Column(
+      modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()),
+      horizontalAlignment = Alignment.CenterHorizontally,
+      verticalArrangement = Arrangement.Center,
     ) {
+      Surface(
+        shape = RoundedCornerShape(30.dp),
+        color = Color(0xFF0A0F1D),
+        tonalElevation = 6.dp,
+        modifier =
+          Modifier
+            .fillMaxWidth()
+            .height(cardH)
+            .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.6f), RoundedCornerShape(30.dp)),
+      ) {
       Box(modifier = Modifier.fillMaxSize()) {
         Image(
           painter = painterResource(id = R.drawable.img_wallpaper_aurora_1795495861674),
@@ -294,6 +301,7 @@ private fun OnboardingHeroPage(
       textAlign = TextAlign.Center,
       color = MaterialTheme.colorScheme.onSurfaceVariant,
     )
+    }
   }
 }
 
@@ -305,21 +313,25 @@ private fun OnboardingAdaptivePage(
   var previewMode by remember { mutableStateOf(DisplayMode.HOME_SCREEN) }
   val orbitCfg = remember { ClockPresets.defaultConfigForStyle(ClockStyleId.SOLAR_ORBIT_PLANETS) }
 
-  Column(
-    modifier = Modifier.fillMaxSize().padding(vertical = 8.dp),
-    horizontalAlignment = Alignment.CenterHorizontally,
-    verticalArrangement = Arrangement.Center,
+  BoxWithConstraints(
+    modifier = Modifier.fillMaxSize().padding(vertical = 4.dp),
   ) {
-    Surface(
-      shape = RoundedCornerShape(30.dp),
-      color = Color.Black,
-      tonalElevation = 6.dp,
-      modifier =
-        Modifier
-          .fillMaxWidth()
-          .height(272.dp)
-          .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.6f), RoundedCornerShape(30.dp)),
+    val cardH = (maxHeight * 0.56f).coerceIn(170.dp, 272.dp)
+    Column(
+      modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()),
+      horizontalAlignment = Alignment.CenterHorizontally,
+      verticalArrangement = Arrangement.Center,
     ) {
+      Surface(
+        shape = RoundedCornerShape(30.dp),
+        color = Color.Black,
+        tonalElevation = 6.dp,
+        modifier =
+          Modifier
+            .fillMaxWidth()
+            .height(cardH)
+            .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.6f), RoundedCornerShape(30.dp)),
+      ) {
       Column(
         modifier = Modifier.fillMaxSize().padding(14.dp),
         verticalArrangement = Arrangement.SpaceBetween,
@@ -406,6 +418,7 @@ private fun OnboardingAdaptivePage(
       textAlign = TextAlign.Center,
       color = MaterialTheme.colorScheme.onSurfaceVariant,
     )
+    }
   }
 }
 
@@ -418,21 +431,25 @@ private fun OnboardingThemePage(
 ) {
   val liquidCfg = remember { ClockPresets.defaultConfigForStyle(ClockStyleId.LIQUID_GLASS_PRISM) }
 
-  Column(
-    modifier = Modifier.fillMaxSize().padding(vertical = 8.dp),
-    horizontalAlignment = Alignment.CenterHorizontally,
-    verticalArrangement = Arrangement.Center,
+  BoxWithConstraints(
+    modifier = Modifier.fillMaxSize().padding(vertical = 4.dp),
   ) {
-    Surface(
-      shape = RoundedCornerShape(30.dp),
-      color = MaterialTheme.colorScheme.surface,
-      tonalElevation = 4.dp,
-      modifier =
-        Modifier
-          .fillMaxWidth()
-          .height(272.dp)
-          .border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(30.dp)),
+    val cardH = (maxHeight * 0.56f).coerceIn(180.dp, 272.dp)
+    Column(
+      modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()),
+      horizontalAlignment = Alignment.CenterHorizontally,
+      verticalArrangement = Arrangement.Center,
     ) {
+      Surface(
+        shape = RoundedCornerShape(30.dp),
+        color = MaterialTheme.colorScheme.surface,
+        tonalElevation = 4.dp,
+        modifier =
+          Modifier
+            .fillMaxWidth()
+            .height(cardH)
+            .border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(30.dp)),
+      ) {
       Column(
         modifier = Modifier.fillMaxSize().padding(16.dp),
         verticalArrangement = Arrangement.SpaceBetween,
@@ -503,5 +520,6 @@ private fun OnboardingThemePage(
       textAlign = TextAlign.Center,
       color = MaterialTheme.colorScheme.onSurfaceVariant,
     )
+    }
   }
 }

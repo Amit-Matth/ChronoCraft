@@ -32,9 +32,12 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.AddToHomeScreen
+import androidx.compose.material.icons.rounded.Apps
 import androidx.compose.material.icons.rounded.BatteryChargingFull
 import androidx.compose.material.icons.rounded.BatteryFull
 import androidx.compose.material.icons.rounded.Bedtime
@@ -49,6 +52,7 @@ import androidx.compose.material.icons.rounded.PhotoLibrary
 import androidx.compose.material.icons.rounded.Schedule
 import androidx.compose.material.icons.rounded.SignalCellularAlt
 import androidx.compose.material.icons.rounded.Tune
+import androidx.compose.material.icons.rounded.Wallpaper
 import androidx.compose.material.icons.rounded.Wifi
 import androidx.compose.material3.Button
 import androidx.compose.material3.FilledTonalButton
@@ -71,16 +75,19 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.example.model.ClockCategory
 import com.example.model.ClockStyleId
 import com.example.model.DisplayMode
+import com.example.model.LiveWallpaperTarget
 import com.example.model.WallpaperOption
 import com.example.model.WidgetSizePreset
 import com.example.ui.components.LiveClockCanvas
 import com.example.ui.components.WallpaperBackdrop
 import com.example.ui.components.rememberLiveClockMillis
 import com.example.ui.viewmodel.ClockStudioUiState
+import com.example.widget.ChronoLiveWallpaperService
 import com.example.widget.ClockArtStyles
 import java.util.Locale
 
@@ -89,9 +96,12 @@ fun HomePreviewScreen(
   uiState: ClockStudioUiState,
   onSelectDisplayMode: (DisplayMode) -> Unit = {},
   onSelectWallpaper: (WallpaperOption, String?) -> Unit,
+  onSelectLiveWallpaperTarget: (LiveWallpaperTarget) -> Unit = {},
   onSelectSizePreset: (WidgetSizePreset) -> Unit,
   onSetGrid: (Int, Int) -> Unit,
   onSetTimeTravel: (Boolean, Int?) -> Unit = { _, _ -> },
+  onOpenAodExperience: () -> Unit = {},
+  onOpenIconPackStudio: () -> Unit = {},
   onOpenStudio: () -> Unit,
   onPinWidget: () -> Unit,
   modifier: Modifier = Modifier,
@@ -112,74 +122,74 @@ fun HomePreviewScreen(
       }
     }
 
-  Column(
+  BoxWithConstraints(
     modifier = modifier.fillMaxSize().background(MaterialTheme.colorScheme.background),
   ) {
-    // 3-Way Environment Preview Switcher (Home / Lock / AOD)
-    Row(
-      modifier =
-        Modifier
-          .fillMaxWidth()
-          .padding(horizontal = 16.dp, vertical = 8.dp)
-          .clip(RoundedCornerShape(14.dp))
-          .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.72f))
-          .padding(4.dp),
-      horizontalArrangement = Arrangement.spacedBy(4.dp),
-    ) {
-      DisplayMode.entries.forEach { mode ->
-        val selected = activeMode == mode
-        val icon = when (mode) {
-          DisplayMode.HOME_SCREEN -> Icons.Rounded.Home
-          DisplayMode.LOCK_SCREEN -> Icons.Rounded.Lock
-          DisplayMode.AOD -> Icons.Rounded.Bedtime
-        }
-        Row(
-          modifier =
-            Modifier
-              .weight(1f)
-              .height(44.dp)
-              .clip(RoundedCornerShape(10.dp))
-              .background(if (selected) MaterialTheme.colorScheme.primary else Color.Transparent)
-              .clickable { onSelectDisplayMode(mode) }
-              .testTag("preview_display_mode_${mode.name.lowercase()}"),
-          horizontalArrangement = Arrangement.Center,
-          verticalAlignment = Alignment.CenterVertically,
-        ) {
-          Icon(
-            imageVector = icon,
-            contentDescription = mode.label,
-            tint = if (selected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.size(16.dp),
-          )
-          Spacer(modifier = Modifier.width(6.dp))
-          Text(
-            text = mode.shortLabel,
-            style = MaterialTheme.typography.labelLarge,
-            color = if (selected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
-            maxLines = 1,
-          )
+    val isTwoPane = maxWidth >= 700.dp
+
+    @Composable
+    fun DisplayModeSwitcher(mod: Modifier = Modifier) {
+      Row(
+        modifier =
+          mod
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(14.dp))
+            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.72f))
+            .padding(4.dp),
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
+      ) {
+        DisplayMode.entries.forEach { mode ->
+          val selected = activeMode == mode
+          val icon = when (mode) {
+            DisplayMode.HOME_SCREEN -> Icons.Rounded.Home
+            DisplayMode.LOCK_SCREEN -> Icons.Rounded.Lock
+            DisplayMode.AOD -> Icons.Rounded.Bedtime
+          }
+          Row(
+            modifier =
+              Modifier
+                .weight(1f)
+                .height(44.dp)
+                .clip(RoundedCornerShape(10.dp))
+                .background(if (selected) MaterialTheme.colorScheme.primary else Color.Transparent)
+                .clickable { onSelectDisplayMode(mode) }
+                .testTag("preview_display_mode_${mode.name.lowercase()}"),
+            horizontalArrangement = Arrangement.Center,
+            verticalAlignment = Alignment.CenterVertically,
+          ) {
+            Icon(
+              imageVector = icon,
+              contentDescription = mode.label,
+              tint = if (selected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
+              modifier = Modifier.size(16.dp),
+            )
+            Spacer(modifier = Modifier.width(6.dp))
+            Text(
+              text = mode.shortLabel,
+              style = MaterialTheme.typography.labelLarge,
+              color = if (selected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
+              maxLines = 1,
+            )
+          }
         }
       }
     }
 
-    // Interactive Phone Display Mockup Stage
-    BoxWithConstraints(
-      modifier =
-        Modifier
-          .weight(1f)
-          .fillMaxWidth()
-          .padding(horizontal = 16.dp, vertical = 4.dp),
-      contentAlignment = Alignment.Center,
-    ) {
-      val maxPreviewW = (maxWidth - 8.dp).coerceAtMost(380.dp)
-      Box(
-        modifier =
-          Modifier
-            .width(maxPreviewW)
-            .fillMaxSize()
-            .clip(RoundedCornerShape(30.dp))
-            .border(2.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(30.dp)),
+    @Composable
+    fun PhoneStageBox(mod: Modifier = Modifier) {
+      BoxWithConstraints(
+        modifier = mod,
+        contentAlignment = Alignment.Center,
       ) {
+        val maxPreviewW = (maxWidth - 8.dp).coerceAtMost(380.dp)
+        Box(
+          modifier =
+            Modifier
+              .width(maxPreviewW)
+              .fillMaxSize()
+              .clip(RoundedCornerShape(30.dp))
+              .border(2.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(30.dp)),
+        ) {
         if (activeMode == DisplayMode.AOD) {
           Box(modifier = Modifier.fillMaxSize().background(Color.Black))
         } else {
@@ -487,194 +497,293 @@ fun HomePreviewScreen(
           }
         }
       }
+      }
     }
 
-    // Preview Control Deck
-    Surface(
-      color = MaterialTheme.colorScheme.surface,
-      tonalElevation = 4.dp,
-      shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
-      modifier = Modifier.fillMaxWidth(),
-    ) {
-      Column(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
-        verticalArrangement = Arrangement.spacedBy(10.dp),
+    @Composable
+    fun PreviewControlDeck(mod: Modifier = Modifier) {
+      Surface(
+        color = MaterialTheme.colorScheme.surface,
+        tonalElevation = 4.dp,
+        shape = if (isTwoPane) RoundedCornerShape(24.dp) else RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
+        modifier = mod,
       ) {
-        when (activeMode) {
-          DisplayMode.HOME_SCREEN -> {
-            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-              items(WidgetSizePreset.entries) { preset ->
-                val selected = uiState.previewCols == preset.cols && uiState.previewRows == preset.rows
-                FilterChip(
-                  selected = selected,
-                  onClick = { onSelectSizePreset(preset) },
-                  label = { Text(preset.label) },
-                  modifier = Modifier.testTag("preview_size_chip_${preset.name.lowercase()}"),
-                )
-              }
-            }
-
-            Row(
-              modifier = Modifier.fillMaxWidth(),
-              horizontalArrangement = Arrangement.spacedBy(16.dp),
-            ) {
-              Column(modifier = Modifier.weight(1f)) {
-                Text(
-                  text = "Width: ${uiState.previewCols} cells",
-                  style = MaterialTheme.typography.labelMedium,
-                  color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                Slider(
-                  value = uiState.previewCols.toFloat(),
-                  onValueChange = { onSetGrid(it.toInt(), uiState.previewRows) },
-                  valueRange = 2f..4f,
-                  steps = 1,
-                  modifier = Modifier.height(28.dp).testTag("preview_width_slider"),
-                )
-              }
-              Column(modifier = Modifier.weight(1f)) {
-                Text(
-                  text = "Height: ${uiState.previewRows} cells",
-                  style = MaterialTheme.typography.labelMedium,
-                  color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                Slider(
-                  value = uiState.previewRows.toFloat(),
-                  onValueChange = { onSetGrid(uiState.previewCols, it.toInt()) },
-                  valueRange = 1f..4f,
-                  steps = 2,
-                  modifier = Modifier.height(28.dp).testTag("preview_height_slider"),
-                )
-              }
-            }
-
-            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-              items(WallpaperOption.entries) { option ->
-                val selected = uiState.previewWallpaper == option
-                FilterChip(
-                  selected = selected,
-                  onClick = {
-                    if (option == WallpaperOption.CUSTOM_PHOTO) {
-                      photoPickerLauncher.launch(
-                        PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly),
-                      )
-                    } else {
-                      onSelectWallpaper(option, null)
-                    }
-                  },
-                  label = { Text(option.label) },
-                  leadingIcon = if (option == WallpaperOption.CUSTOM_PHOTO) {
-                    { Icon(Icons.Rounded.PhotoLibrary, contentDescription = null, modifier = Modifier.size(16.dp)) }
-                  } else null,
-                  modifier = Modifier.testTag("wallpaper_chip_${option.name.lowercase()}"),
-                )
-              }
-            }
-          }
-
-          DisplayMode.LOCK_SCREEN -> {
-            Text(
-              text = "Lock Screen adapts ${config.styleId.displayName} into a clean horizontal composition with keyguard widget support.",
-              style = MaterialTheme.typography.bodySmall,
-              color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-              items(WallpaperOption.entries) { option ->
-                val selected = uiState.previewWallpaper == option
-                FilterChip(
-                  selected = selected,
-                  onClick = {
-                    if (option == WallpaperOption.CUSTOM_PHOTO) {
-                      photoPickerLauncher.launch(
-                        PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly),
-                      )
-                    } else {
-                      onSelectWallpaper(option, null)
-                    }
-                  },
-                  label = { Text(option.label) },
-                  modifier = Modifier.testTag("wallpaper_chip_${option.name.lowercase()}"),
-                )
-              }
-            }
-          }
-
-          DisplayMode.AOD -> {
-            Text(
-              text = "System AOD does not allow third-party widgets directly. Use ChronoCraft Ambient Screen Saver while charging or docked.",
-              style = MaterialTheme.typography.bodySmall,
-              color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            FilledTonalButton(
-              onClick = {
-                val dreamIntent = Intent(Settings.ACTION_DREAM_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                val fallback = Intent(Settings.ACTION_DISPLAY_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                runCatching { context.startActivity(dreamIntent) }
-                  .onFailure { runCatching { context.startActivity(fallback) } }
-              },
-              modifier = Modifier.fillMaxWidth().height(48.dp).testTag("preview_open_dream_settings_btn"),
-            ) {
-              Icon(Icons.Rounded.Bedtime, contentDescription = null, modifier = Modifier.size(18.dp))
-              Spacer(modifier = Modifier.width(6.dp))
-              Text("Enable Ambient Screen Saver")
-            }
-          }
-        }
-
-        Row(
-          modifier = Modifier.fillMaxWidth(),
-          horizontalArrangement = Arrangement.spacedBy(8.dp),
-          verticalAlignment = Alignment.CenterVertically,
+        Column(
+          modifier =
+            Modifier
+              .fillMaxWidth()
+              .verticalScroll(rememberScrollState())
+              .padding(horizontal = 16.dp, vertical = 12.dp),
+          verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
-          FilterChip(
-            selected = uiState.timeTravelEnabled,
-            onClick = { onSetTimeTravel(!uiState.timeTravelEnabled, null) },
-            label = {
+          when (activeMode) {
+            DisplayMode.HOME_SCREEN -> {
+              LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                items(WidgetSizePreset.entries) { preset ->
+                  val selected = uiState.previewCols == preset.cols && uiState.previewRows == preset.rows
+                  FilterChip(
+                    selected = selected,
+                    onClick = { onSelectSizePreset(preset) },
+                    label = { Text(preset.label) },
+                    modifier = Modifier.testTag("preview_size_chip_${preset.name.lowercase()}"),
+                  )
+                }
+              }
+
+              Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(16.dp),
+              ) {
+                Column(modifier = Modifier.weight(1f)) {
+                  Text(
+                    text = "Width: ${uiState.previewCols} cells",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                  )
+                  Slider(
+                    value = uiState.previewCols.toFloat(),
+                    onValueChange = { onSetGrid(it.toInt(), uiState.previewRows) },
+                    valueRange = 2f..4f,
+                    steps = 1,
+                    modifier = Modifier.height(28.dp).testTag("preview_width_slider"),
+                  )
+                }
+                Column(modifier = Modifier.weight(1f)) {
+                  Text(
+                    text = "Height: ${uiState.previewRows} cells",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                  )
+                  Slider(
+                    value = uiState.previewRows.toFloat(),
+                    onValueChange = { onSetGrid(uiState.previewCols, it.toInt()) },
+                    valueRange = 1f..4f,
+                    steps = 2,
+                    modifier = Modifier.height(28.dp).testTag("preview_height_slider"),
+                  )
+                }
+              }
+
+              LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                items(WallpaperOption.entries) { option ->
+                  val selected = uiState.previewWallpaper == option
+                  FilterChip(
+                    selected = selected,
+                    onClick = {
+                      if (option == WallpaperOption.CUSTOM_PHOTO) {
+                        photoPickerLauncher.launch(
+                          PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly),
+                        )
+                      } else {
+                        onSelectWallpaper(option, null)
+                      }
+                    },
+                    label = { Text(option.label) },
+                    leadingIcon = if (option == WallpaperOption.CUSTOM_PHOTO) {
+                      { Icon(Icons.Rounded.PhotoLibrary, contentDescription = null, modifier = Modifier.size(16.dp)) }
+                    } else null,
+                    modifier = Modifier.testTag("wallpaper_chip_${option.name.lowercase()}"),
+                  )
+                }
+              }
+
+              Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+              ) {
+                FilledTonalButton(
+                  onClick = {
+                    onSelectLiveWallpaperTarget(LiveWallpaperTarget.HOME_SCREEN)
+                    ChronoLiveWallpaperService.launchWallpaperPicker(context)
+                  },
+                  modifier = Modifier.weight(1f).height(46.dp).testTag("preview_home_wallpaper_btn"),
+                  shape = RoundedCornerShape(14.dp),
+                ) {
+                  Icon(Icons.Rounded.Wallpaper, contentDescription = null, modifier = Modifier.size(17.dp))
+                  Spacer(modifier = Modifier.width(5.dp))
+                  Text("Live Wallpaper", maxLines = 1, overflow = TextOverflow.Ellipsis)
+                }
+                FilledTonalButton(
+                  onClick = onOpenIconPackStudio,
+                  modifier = Modifier.weight(1f).height(46.dp).testTag("preview_open_icons_btn"),
+                  shape = RoundedCornerShape(14.dp),
+                ) {
+                  Icon(Icons.Rounded.Apps, contentDescription = null, modifier = Modifier.size(17.dp))
+                  Spacer(modifier = Modifier.width(5.dp))
+                  Text("Icon Studio", maxLines = 1, overflow = TextOverflow.Ellipsis)
+                }
+              }
+            }
+
+            DisplayMode.LOCK_SCREEN -> {
               Text(
-                if (uiState.timeTravelEnabled) {
-                  "Time Travel ${String.format(Locale.US, "%02d:%02d", uiState.timeTravelMinutes / 60, uiState.timeTravelMinutes % 60)}"
-                } else {
-                  "Time Travel"
-                },
+                text = "Apply ${config.styleId.displayName} as a Live Lock Screen Wallpaper, or add it as a keyguard widget on Samsung LockStar / Android 15+ devices.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
               )
-            },
-            leadingIcon = { Icon(Icons.Rounded.Schedule, contentDescription = null, modifier = Modifier.size(16.dp)) },
-            modifier = Modifier.testTag("preview_time_travel_chip"),
-          )
-          if (uiState.timeTravelEnabled) {
-            Slider(
-              value = uiState.timeTravelMinutes.toFloat(),
-              onValueChange = { onSetTimeTravel(true, it.toInt()) },
-              valueRange = 0f..1439f,
-              modifier = Modifier.weight(1f).height(28.dp),
-            )
-          }
-        }
+              LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                items(LiveWallpaperTarget.entries) { target ->
+                  FilterChip(
+                    selected = uiState.liveWallpaperTarget == target,
+                    onClick = { onSelectLiveWallpaperTarget(target) },
+                    label = { Text(target.label) },
+                    modifier = Modifier.testTag("lock_target_${target.name.lowercase()}"),
+                  )
+                }
+              }
+              LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                items(WallpaperOption.entries) { option ->
+                  val selected = uiState.previewWallpaper == option
+                  FilterChip(
+                    selected = selected,
+                    onClick = {
+                      if (option == WallpaperOption.CUSTOM_PHOTO) {
+                        photoPickerLauncher.launch(
+                          PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly),
+                        )
+                      } else {
+                        onSelectWallpaper(option, null)
+                      }
+                    },
+                    label = { Text(option.label) },
+                    modifier = Modifier.testTag("wallpaper_chip_${option.name.lowercase()}"),
+                  )
+                }
+              }
+              FilledTonalButton(
+                onClick = { ChronoLiveWallpaperService.launchWallpaperPicker(context) },
+                modifier = Modifier.fillMaxWidth().height(48.dp).testTag("preview_set_lock_wallpaper_btn"),
+                shape = RoundedCornerShape(14.dp),
+              ) {
+                Icon(Icons.Rounded.Wallpaper, contentDescription = null, modifier = Modifier.size(18.dp))
+                Spacer(modifier = Modifier.width(6.dp))
+                Text("Set Lock / Home Live Wallpaper")
+              }
+            }
 
-        // Bottom CTAs
-        Row(
-          modifier = Modifier.fillMaxWidth(),
-          horizontalArrangement = Arrangement.spacedBy(10.dp),
-        ) {
-          OutlinedButton(
-            onClick = onOpenStudio,
-            modifier = Modifier.weight(1f).height(48.dp).testTag("preview_edit_studio_btn"),
-            shape = RoundedCornerShape(14.dp),
-          ) {
-            Icon(Icons.Rounded.Tune, contentDescription = null, modifier = Modifier.size(18.dp))
-            Spacer(modifier = Modifier.width(6.dp))
-            Text("Edit Style")
+            DisplayMode.AOD -> {
+              Text(
+                text = "Launch ChronoCraft StandBy AOD (OLED true-black with burn-in pixel shift & dimmer) or enable the system charging Screen Saver.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+              )
+              Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+              ) {
+                Button(
+                  onClick = onOpenAodExperience,
+                  modifier = Modifier.weight(1.1f).height(48.dp).testTag("preview_launch_aod_btn"),
+                  shape = RoundedCornerShape(14.dp),
+                ) {
+                  Icon(Icons.Rounded.Bedtime, contentDescription = null, modifier = Modifier.size(18.dp))
+                  Spacer(modifier = Modifier.width(6.dp))
+                  Text("Launch AOD", maxLines = 1, overflow = TextOverflow.Ellipsis)
+                }
+                FilledTonalButton(
+                  onClick = {
+                    val dreamIntent = Intent(Settings.ACTION_DREAM_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    val fallback = Intent(Settings.ACTION_DISPLAY_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    runCatching { context.startActivity(dreamIntent) }
+                      .onFailure { runCatching { context.startActivity(fallback) } }
+                  },
+                  modifier = Modifier.weight(1f).height(48.dp).testTag("preview_open_dream_settings_btn"),
+                  shape = RoundedCornerShape(14.dp),
+                ) {
+                  Text("Screen Saver", maxLines = 1, overflow = TextOverflow.Ellipsis)
+                }
+              }
+            }
           }
-          Button(
-            onClick = onPinWidget,
-            modifier = Modifier.weight(1.3f).height(48.dp).testTag("preview_pin_btn"),
-            shape = RoundedCornerShape(14.dp),
+
+          Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically,
           ) {
-            Icon(Icons.Rounded.AddToHomeScreen, contentDescription = null, modifier = Modifier.size(18.dp))
-            Spacer(modifier = Modifier.width(6.dp))
-            Text("Pin to Home")
+            FilterChip(
+              selected = uiState.timeTravelEnabled,
+              onClick = { onSetTimeTravel(!uiState.timeTravelEnabled, null) },
+              label = {
+                Text(
+                  if (uiState.timeTravelEnabled) {
+                    "Time Travel ${String.format(Locale.US, "%02d:%02d", uiState.timeTravelMinutes / 60, uiState.timeTravelMinutes % 60)}"
+                  } else {
+                    "Time Travel"
+                  },
+                )
+              },
+              leadingIcon = { Icon(Icons.Rounded.Schedule, contentDescription = null, modifier = Modifier.size(16.dp)) },
+              modifier = Modifier.testTag("preview_time_travel_chip"),
+            )
+            if (uiState.timeTravelEnabled) {
+              Slider(
+                value = uiState.timeTravelMinutes.toFloat(),
+                onValueChange = { onSetTimeTravel(true, it.toInt()) },
+                valueRange = 0f..1439f,
+                modifier = Modifier.weight(1f).height(28.dp),
+              )
+            }
+          }
+
+          // Bottom CTAs
+          Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+          ) {
+            OutlinedButton(
+              onClick = onOpenStudio,
+              modifier = Modifier.weight(1f).height(48.dp).testTag("preview_edit_studio_btn"),
+              shape = RoundedCornerShape(14.dp),
+            ) {
+              Icon(Icons.Rounded.Tune, contentDescription = null, modifier = Modifier.size(18.dp))
+              Spacer(modifier = Modifier.width(6.dp))
+              Text("Edit Style", maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
+            Button(
+              onClick = onPinWidget,
+              modifier = Modifier.weight(1.3f).height(48.dp).testTag("preview_pin_btn"),
+              shape = RoundedCornerShape(14.dp),
+            ) {
+              Icon(Icons.Rounded.AddToHomeScreen, contentDescription = null, modifier = Modifier.size(18.dp))
+              Spacer(modifier = Modifier.width(6.dp))
+              Text("Pin to Home", maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
           }
         }
+      }
+    }
+
+    if (isTwoPane) {
+      Row(
+        modifier = Modifier.fillMaxSize().padding(16.dp),
+        horizontalArrangement = Arrangement.spacedBy(16.dp),
+      ) {
+        Column(
+          modifier = Modifier.weight(1f).fillMaxSize(),
+          verticalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+          DisplayModeSwitcher()
+          PhoneStageBox(mod = Modifier.weight(1f).fillMaxWidth())
+        }
+        PreviewControlDeck(mod = Modifier.weight(1f).fillMaxSize())
+      }
+    } else {
+      Column(modifier = Modifier.fillMaxSize()) {
+        DisplayModeSwitcher(mod = Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
+        PhoneStageBox(
+          mod =
+            Modifier
+              .weight(1f)
+              .fillMaxWidth()
+              .padding(horizontal = 16.dp, vertical = 4.dp),
+        )
+        PreviewControlDeck(
+          mod =
+            Modifier
+              .fillMaxWidth()
+              .weight(0.78f, fill = false),
+        )
       }
     }
   }

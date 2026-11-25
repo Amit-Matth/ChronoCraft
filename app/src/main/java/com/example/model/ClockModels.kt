@@ -640,3 +640,349 @@ data class ActiveHomeWidget(
   val providerLabel: String,
   val config: WidgetConfig,
 )
+
+enum class LiveWallpaperTarget(
+  val label: String,
+  val displayMode: DisplayMode,
+) {
+  LOCK_SCREEN("Lock Clock", DisplayMode.LOCK_SCREEN),
+  HOME_SCREEN("Home Clock", DisplayMode.HOME_SCREEN),
+  BACKDROP_ONLY("Subtle Wallpaper", DisplayMode.LOCK_SCREEN),
+}
+
+@JsonClass(generateAdapter = true)
+data class AodExperienceSettings(
+  val dimLevel: Float = 0.82f,
+  val burnInProtection: Boolean = true,
+  val standbySplitLandscape: Boolean = true,
+  val showBatteryAndWeather: Boolean = true,
+  val showSecondsPulse: Boolean = false,
+)
+
+enum class IconShapeStyle(val label: String) {
+  SQUIRCLE("Squircle"),
+  CIRCLE("Circle"),
+  ROUNDED_SQUARE("Rounded"),
+  TEARDROP("Teardrop"),
+  HEXAGON("Hexagon"),
+  SOFT_CUT("Gem Cut"),
+}
+
+enum class IconFinishStyle(val label: String, val subtitle: String) {
+  ORIGINAL_FRAMED("Framed", "Full-color app icon inside a styled tile"),
+  GLASS_FROST("Frosted Glass", "Translucent glass frame with specular highlight"),
+  NEON_GLOW("Neon Edge", "Luminous neon stroke on dark obsidian"),
+  MONOCHROME_INK("Monochrome", "Unified clean single-tone tinted icons"),
+  DUOTONE_GRADIENT("Gradient Luxe", "Vivid dual-tone gradient backdrop"),
+  PASTEL_CLAY("Soft Clay", "Gentle matte pastel aesthetic"),
+  OLED_OUTLINE("OLED Line", "Ultra-dark tile with crisp accent border"),
+}
+
+enum class IconBadgeStyle(val label: String) {
+  NONE("None"),
+  DOT("Accent Dot"),
+  SPARK("Corner Spark"),
+  RING("Inner Ring"),
+}
+
+@JsonClass(generateAdapter = true)
+data class IconPackConfig(
+  val packName: String = "Obsidian Neon",
+  val shapeStyle: IconShapeStyle = IconShapeStyle.SQUIRCLE,
+  val finishStyle: IconFinishStyle = IconFinishStyle.NEON_GLOW,
+  val backgroundColor: Int = 0xFF0F172A.toInt(),
+  val secondaryColor: Int = 0xFF1E293B.toInt(),
+  val iconTintColor: Int = 0xFF38BDF8.toInt(),
+  val borderColor: Int = 0xFF38BDF8.toInt(),
+  val iconScale: Float = 0.62f,
+  val cornerRadiusRatio: Float = 0.30f,
+  val borderWidthDp: Float = 1.6f,
+  val showDropShadow: Boolean = true,
+  val showGlowHalo: Boolean = true,
+  val monochromeGlyph: Boolean = false,
+  val useDynamicAppColor: Boolean = false,
+  val showHomeLabels: Boolean = true,
+  val badgeStyle: IconBadgeStyle = IconBadgeStyle.NONE,
+  val activeExternalPackId: String? = null,
+)
+
+@JsonClass(generateAdapter = true)
+data class AppIconOverride(
+  val componentKey: String,
+  val customLabel: String? = null,
+  val customPhotoUri: String? = null,
+  val customTintColor: Int? = null,
+  val isPinnedToHome: Boolean = false,
+  val externalDrawableName: String? = null,
+  val externalImagePath: String? = null,
+)
+
+enum class IconPackSourceType(val label: String) {
+  INSTALLED_APK("Installed Pack"),
+  IMPORTED_ZIP("Imported ZIP"),
+}
+
+@JsonClass(generateAdapter = true)
+data class ExternalIconPackInfo(
+  val packId: String,
+  val name: String,
+  val sourceType: IconPackSourceType,
+  val packageName: String? = null,
+  val folderPath: String? = null,
+  val iconCount: Int = 0,
+)
+
+enum class SuperIconLayoutStyle(val label: String) {
+  COLOROS_SPLIT("ColorOS 2×2"),
+  PILL_BAR("Pill Strip 4×1"),
+  DECK_GRID("Deck Card 4×2"),
+}
+
+enum class ShortcutActionType(val label: String) {
+  CAMERA_PHOTO("Photo Mode"),
+  CAMERA_VIDEO("Video Mode"),
+  CAMERA_SELFIE("Selfie Cam"),
+  LAUNCH_APP("Open App"),
+  OPEN_URL("Web Link"),
+  WEB_SEARCH("Web Search"),
+  SETTINGS_WIFI("Wi-Fi"),
+  SETTINGS_BLUETOOTH("Bluetooth"),
+  SET_ALARM("New Alarm"),
+  SET_TIMER("Timer"),
+}
+
+@JsonClass(generateAdapter = true)
+data class QuickShortcutAction(
+  val id: String,
+  val label: String,
+  val actionType: ShortcutActionType,
+  val targetPackage: String? = null,
+  val targetActivity: String? = null,
+  val targetUriOrQuery: String? = null,
+)
+
+@JsonClass(generateAdapter = true)
+data class SuperIconWidgetConfig(
+  val widgetId: Int = 0,
+  val primaryPackage: String = "",
+  val primaryActivity: String = "",
+  val primaryLabel: String = "Camera",
+  val layoutStyle: SuperIconLayoutStyle = SuperIconLayoutStyle.COLOROS_SPLIT,
+  val backgroundColor: Int = 0xFF0F172A.toInt(),
+  val accentColor: Int = 0xFF38BDF8.toInt(),
+  val textColor: Int = 0xFFF8FAFC.toInt(),
+  val cardAlpha: Float = 0.88f,
+  val cornerRadiusDp: Float = 26f,
+  val shortcuts: List<QuickShortcutAction> = emptyList(),
+)
+
+object SuperIconPresets {
+  fun suggestedShortcutsForApp(
+    app: LaunchableAppInfo?,
+    allApps: List<LaunchableAppInfo>,
+  ): List<QuickShortcutAction> {
+    val pkg = app?.packageName?.lowercase().orEmpty()
+    val lbl = app?.label?.lowercase().orEmpty()
+    return when {
+      "camera" in pkg || "camera" in lbl -> listOf(
+        QuickShortcutAction("cam_photo", "Photo", ShortcutActionType.CAMERA_PHOTO),
+        QuickShortcutAction("cam_video", "Video", ShortcutActionType.CAMERA_VIDEO),
+        QuickShortcutAction("cam_selfie", "Selfie", ShortcutActionType.CAMERA_SELFIE),
+      )
+      "chrome" in pkg || "browser" in lbl || "search" in lbl -> listOf(
+        QuickShortcutAction("br_search", "Search", ShortcutActionType.WEB_SEARCH),
+        QuickShortcutAction("br_yt", "YouTube", ShortcutActionType.OPEN_URL, targetUriOrQuery = "https://m.youtube.com"),
+        QuickShortcutAction("br_news", "News", ShortcutActionType.OPEN_URL, targetUriOrQuery = "https://news.google.com"),
+      )
+      "clock" in pkg || "deskclock" in pkg || "alarm" in lbl -> listOf(
+        QuickShortcutAction("clk_alarm", "Alarm", ShortcutActionType.SET_ALARM),
+        QuickShortcutAction("clk_timer", "Timer", ShortcutActionType.SET_TIMER),
+        QuickShortcutAction("clk_wifi", "Wi-Fi", ShortcutActionType.SETTINGS_WIFI),
+      )
+      "settings" in pkg || "settings" in lbl -> listOf(
+        QuickShortcutAction("set_wifi", "Wi-Fi", ShortcutActionType.SETTINGS_WIFI),
+        QuickShortcutAction("set_bt", "Bluetooth", ShortcutActionType.SETTINGS_BLUETOOTH),
+        QuickShortcutAction("set_alarm", "Alarm", ShortcutActionType.SET_ALARM),
+      )
+      else -> {
+        val extras = allApps.filter { it.packageName != app?.packageName }.take(3)
+        if (extras.isNotEmpty()) {
+          extras.mapIndexed { idx, other ->
+            QuickShortcutAction(
+              id = "app_sc_$idx",
+              label = other.label.take(10),
+              actionType = ShortcutActionType.LAUNCH_APP,
+              targetPackage = other.packageName,
+              targetActivity = other.activityName,
+            )
+          }
+        } else {
+          listOf(
+            QuickShortcutAction("def_photo", "Photo", ShortcutActionType.CAMERA_PHOTO),
+            QuickShortcutAction("def_video", "Video", ShortcutActionType.CAMERA_VIDEO),
+            QuickShortcutAction("def_search", "Search", ShortcutActionType.WEB_SEARCH),
+          )
+        }
+      }
+    }
+  }
+}
+
+data class IconPackPreset(
+  val id: String,
+  val name: String,
+  val subtitle: String,
+  val config: IconPackConfig,
+)
+
+data class LaunchableAppInfo(
+  val packageName: String,
+  val activityName: String,
+  val label: String,
+  val componentKey: String,
+  val dominantColor: Int,
+)
+
+object IconPackPresets {
+  val presets: List<IconPackPreset> = listOf(
+    IconPackPreset(
+      id = "obsidian_neon",
+      name = "Obsidian Neon",
+      subtitle = "Deep slate + electric cyan rim",
+      config = IconPackConfig(
+        packName = "Obsidian Neon",
+        shapeStyle = IconShapeStyle.SQUIRCLE,
+        finishStyle = IconFinishStyle.NEON_GLOW,
+        backgroundColor = 0xFF0B1120.toInt(),
+        secondaryColor = 0xFF1E1B4B.toInt(),
+        iconTintColor = 0xFF38BDF8.toInt(),
+        borderColor = 0xFF22D3EE.toInt(),
+        borderWidthDp = 1.8f,
+        showGlowHalo = true,
+        monochromeGlyph = true,
+      ),
+    ),
+    IconPackPreset(
+      id = "frosted_pearl",
+      name = "Frosted Glass",
+      subtitle = "Translucent air glass + crisp white",
+      config = IconPackConfig(
+        packName = "Frosted Glass",
+        shapeStyle = IconShapeStyle.ROUNDED_SQUARE,
+        finishStyle = IconFinishStyle.GLASS_FROST,
+        backgroundColor = 0xFFFFFFFF.toInt(),
+        secondaryColor = 0xFFE2E8F0.toInt(),
+        iconTintColor = 0xFFFFFFFF.toInt(),
+        borderColor = 0xFFFFFFFF.toInt(),
+        borderWidthDp = 1.4f,
+        showGlowHalo = false,
+        monochromeGlyph = false,
+      ),
+    ),
+    IconPackPreset(
+      id = "pure_mono",
+      name = "OLED Mono",
+      subtitle = "Pitch black + silver minimalist glyph",
+      config = IconPackConfig(
+        packName = "OLED Mono",
+        shapeStyle = IconShapeStyle.CIRCLE,
+        finishStyle = IconFinishStyle.OLED_OUTLINE,
+        backgroundColor = 0xFF050507.toInt(),
+        secondaryColor = 0xFF141418.toInt(),
+        iconTintColor = 0xFFF8FAFC.toInt(),
+        borderColor = 0xFF475569.toInt(),
+        borderWidthDp = 1.2f,
+        showGlowHalo = false,
+        monochromeGlyph = true,
+      ),
+    ),
+    IconPackPreset(
+      id = "aurora_bloom",
+      name = "Aurora Luxe",
+      subtitle = "Violet-indigo gradient + soft glow",
+      config = IconPackConfig(
+        packName = "Aurora Luxe",
+        shapeStyle = IconShapeStyle.SQUIRCLE,
+        finishStyle = IconFinishStyle.DUOTONE_GRADIENT,
+        backgroundColor = 0xFF312E81.toInt(),
+        secondaryColor = 0xFFEC4899.toInt(),
+        iconTintColor = 0xFFFDF2F8.toInt(),
+        borderColor = 0xFFF472B6.toInt(),
+        borderWidthDp = 1.2f,
+        showGlowHalo = true,
+        monochromeGlyph = true,
+      ),
+    ),
+    IconPackPreset(
+      id = "bauhaus_sand",
+      name = "Warm Terracotta",
+      subtitle = "Editorial clay beige + espresso ink",
+      config = IconPackConfig(
+        packName = "Warm Terracotta",
+        shapeStyle = IconShapeStyle.TEARDROP,
+        finishStyle = IconFinishStyle.PASTEL_CLAY,
+        backgroundColor = 0xFFF5E6D3.toInt(),
+        secondaryColor = 0xFFE7CBB0.toInt(),
+        iconTintColor = 0xFF7C2D12.toInt(),
+        borderColor = 0xFFC2410C.toInt(),
+        borderWidthDp = 1.0f,
+        showGlowHalo = false,
+        monochromeGlyph = true,
+      ),
+    ),
+    IconPackPreset(
+      id = "cyber_mint",
+      name = "Cyber Matrix",
+      subtitle = "Hexagonal tech grid + emerald glow",
+      config = IconPackConfig(
+        packName = "Cyber Matrix",
+        shapeStyle = IconShapeStyle.HEXAGON,
+        finishStyle = IconFinishStyle.NEON_GLOW,
+        backgroundColor = 0xFF022C22.toInt(),
+        secondaryColor = 0xFF064E3B.toInt(),
+        iconTintColor = 0xFF34D399.toInt(),
+        borderColor = 0xFF10B981.toInt(),
+        borderWidthDp = 1.8f,
+        showGlowHalo = true,
+        monochromeGlyph = true,
+        badgeStyle = IconBadgeStyle.DOT,
+      ),
+    ),
+    IconPackPreset(
+      id = "adaptive_vivid",
+      name = "Dynamic Tint",
+      subtitle = "Pulls accent glow from each app icon",
+      config = IconPackConfig(
+        packName = "Dynamic Tint",
+        shapeStyle = IconShapeStyle.SQUIRCLE,
+        finishStyle = IconFinishStyle.ORIGINAL_FRAMED,
+        backgroundColor = 0xFF0F172A.toInt(),
+        secondaryColor = 0xFF1E293B.toInt(),
+        iconTintColor = 0xFFF8FAFC.toInt(),
+        borderColor = 0xFF64748B.toInt(),
+        borderWidthDp = 1.2f,
+        showGlowHalo = true,
+        monochromeGlyph = false,
+        useDynamicAppColor = true,
+      ),
+    ),
+    IconPackPreset(
+      id = "gem_ivory",
+      name = "Ivory Gem",
+      subtitle = "Clean paper card + cobalt trim",
+      config = IconPackConfig(
+        packName = "Ivory Gem",
+        shapeStyle = IconShapeStyle.SOFT_CUT,
+        finishStyle = IconFinishStyle.MONOCHROME_INK,
+        backgroundColor = 0xFFF8FAFC.toInt(),
+        secondaryColor = 0xFFE2E8F0.toInt(),
+        iconTintColor = 0xFF1D4ED8.toInt(),
+        borderColor = 0xFF93C5FD.toInt(),
+        borderWidthDp = 1.4f,
+        showGlowHalo = false,
+        monochromeGlyph = true,
+      ),
+    ),
+  )
+}
+

@@ -9,8 +9,10 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -22,13 +24,19 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.GridItemSpan
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items as gridItems
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.staggeredgrid.LazyVerticalStaggeredGrid
 import androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridCells
 import androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridItemSpan
-import androidx.compose.foundation.lazy.staggeredgrid.items
+import androidx.compose.foundation.lazy.staggeredgrid.items as staggeredItems
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -116,73 +124,89 @@ fun LibraryScreen(
     }
   }
 
-  Column(
+  BoxWithConstraints(
     modifier = modifier.fillMaxSize().background(MaterialTheme.colorScheme.background),
+    contentAlignment = Alignment.TopCenter,
   ) {
-    // Editorial Header + Theme Toggle + Quick Actions
+    val outerMaxWidth = maxWidth
+    val isNarrow = outerMaxWidth < 390.dp
+    val isTabletOrWide = outerMaxWidth >= 600.dp
+    val horizontalPad = if (isTabletOrWide) 24.dp else 16.dp
+
     Column(
-      modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp),
-      verticalArrangement = Arrangement.spacedBy(10.dp),
+      modifier = Modifier.fillMaxSize().widthIn(max = 1140.dp),
     ) {
-      Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically,
+      // Editorial Header + Theme Toggle + Quick Actions
+      Column(
+        modifier = Modifier.fillMaxWidth().padding(horizontal = horizontalPad, vertical = 10.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
       ) {
         Row(
-          modifier = Modifier.weight(1f),
+          modifier = Modifier.fillMaxWidth(),
+          horizontalArrangement = Arrangement.SpaceBetween,
           verticalAlignment = Alignment.CenterVertically,
-          horizontalArrangement = Arrangement.spacedBy(10.dp),
         ) {
-          Image(
-            painter = painterResource(id = R.drawable.chrono_app_logo_1795569986651),
-            contentDescription = "ChronoCraft logo",
-            contentScale = ContentScale.Crop,
-            modifier =
-              Modifier
-                .size(36.dp)
-                .clip(RoundedCornerShape(10.dp))
-                .border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(10.dp)),
-          )
-          Column {
-            Text(
-              text = "ChronoCraft",
-              style = MaterialTheme.typography.headlineSmall,
-              color = MaterialTheme.colorScheme.onBackground,
-            )
-            val subline = buildString {
-              append("${ClockStyleId.entries.size} clocks")
-              if (weather.isLoaded) append(" • ${weather.displayTemp(false)}")
-            }
-            Text(
-              text = subline,
-              style = MaterialTheme.typography.labelMedium,
-              color = MaterialTheme.colorScheme.primary,
-            )
-          }
-        }
-
-        Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
-          val themeIcon = when (appThemeMode) {
-            AppThemeMode.SYSTEM -> Icons.Rounded.BrightnessAuto
-            AppThemeMode.LIGHT -> Icons.Rounded.LightMode
-            AppThemeMode.DARK -> Icons.Rounded.DarkMode
-          }
-          IconButton(
-            onClick = onCycleThemeMode,
-            modifier =
-              Modifier
-                .size(48.dp)
-                .clip(CircleShape)
-                .background(MaterialTheme.colorScheme.surfaceVariant)
-                .testTag("library_theme_toggle_btn"),
+          Row(
+            modifier = Modifier.weight(1f),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
           ) {
-            Icon(
-              imageVector = themeIcon,
-              contentDescription = "Theme mode: ${appThemeMode.label}",
-              tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            Image(
+              painter = painterResource(id = R.drawable.chrono_app_logo_1795569986651),
+              contentDescription = "ChronoCraft logo",
+              contentScale = ContentScale.Crop,
+              modifier =
+                Modifier
+                  .size(if (isNarrow) 32.dp else 38.dp)
+                  .clip(RoundedCornerShape(10.dp))
+                  .border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(10.dp)),
             )
+            Column {
+              Text(
+                text = "ChronoCraft",
+                style = if (isNarrow) MaterialTheme.typography.titleLarge else MaterialTheme.typography.headlineSmall,
+                color = MaterialTheme.colorScheme.onBackground,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+              )
+              val subline = buildString {
+                append("${ClockStyleId.entries.size} clocks")
+                if (weather.isLoaded) append(" • ${weather.displayTemp(false)}")
+              }
+              Text(
+                text = subline,
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.primary,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+              )
+            }
           }
+
+          Row(
+            horizontalArrangement = Arrangement.spacedBy(if (isNarrow) 4.dp else 6.dp),
+            verticalAlignment = Alignment.CenterVertically,
+          ) {
+            val themeIcon = when (appThemeMode) {
+              AppThemeMode.SYSTEM -> Icons.Rounded.BrightnessAuto
+              AppThemeMode.LIGHT -> Icons.Rounded.LightMode
+              AppThemeMode.DARK -> Icons.Rounded.DarkMode
+            }
+            IconButton(
+              onClick = onCycleThemeMode,
+              modifier =
+                Modifier
+                  .size(48.dp)
+                  .clip(CircleShape)
+                  .background(MaterialTheme.colorScheme.surfaceVariant)
+                  .testTag("library_theme_toggle_btn"),
+            ) {
+              Icon(
+                imageVector = themeIcon,
+                contentDescription = "Theme mode: ${appThemeMode.label}",
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+              )
+            }
 
           IconButton(
             onClick = onPickRandomStyle,
@@ -203,11 +227,13 @@ fun LibraryScreen(
           FilledTonalButton(
             onClick = onOpenBuilder,
             modifier = Modifier.height(48.dp).testTag("library_open_builder_btn"),
-            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
+            contentPadding = PaddingValues(horizontal = if (isNarrow) 10.dp else 12.dp, vertical = 8.dp),
           ) {
             Icon(Icons.Rounded.AutoAwesome, contentDescription = null, modifier = Modifier.size(18.dp))
-            Spacer(modifier = Modifier.width(5.dp))
-            Text("Build", style = MaterialTheme.typography.labelLarge)
+            if (!isNarrow) {
+              Spacer(modifier = Modifier.width(5.dp))
+              Text("Build", style = MaterialTheme.typography.labelLarge)
+            }
           }
 
           IconButton(
@@ -285,16 +311,19 @@ fun LibraryScreen(
         }
       }
 
-      // Dense / Staggered / List Layout Switcher Row
+      // Dense / Staggered / List Layout Switcher Row (Responsive wrapping on narrow phones)
       Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically,
       ) {
         Text(
-          text = "${styles.size} styles • ${appThemeMode.label} theme",
+          text = "${styles.size} styles • ${appThemeMode.label}",
           style = MaterialTheme.typography.labelMedium,
           color = MaterialTheme.colorScheme.onSurfaceVariant,
+          maxLines = 1,
+          overflow = TextOverflow.Ellipsis,
+          modifier = Modifier.weight(1f, fill = false).padding(end = 8.dp),
         )
 
         Row(
@@ -319,7 +348,7 @@ fun LibraryScreen(
                   .clip(RoundedCornerShape(9.dp))
                   .background(if (selected) MaterialTheme.colorScheme.primary else Color.Transparent)
                   .clickable { onSelectLayoutMode(mode) }
-                  .padding(horizontal = 9.dp)
+                  .padding(horizontal = if (isNarrow) 7.dp else 9.dp)
                   .testTag("layout_mode_${mode.name.lowercase()}"),
               verticalAlignment = Alignment.CenterVertically,
               horizontalArrangement = Arrangement.spacedBy(4.dp),
@@ -330,11 +359,14 @@ fun LibraryScreen(
                 tint = if (selected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.size(16.dp),
               )
-              Text(
-                text = mode.label,
-                style = MaterialTheme.typography.labelSmall,
-                color = if (selected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
-              )
+              if (!isNarrow || selected) {
+                Text(
+                  text = mode.label,
+                  style = MaterialTheme.typography.labelSmall,
+                  color = if (selected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
+                  maxLines = 1,
+                )
+              }
             }
           }
         }
@@ -344,99 +376,190 @@ fun LibraryScreen(
     val showRecents = recentStyles.isNotEmpty() && query.isEmpty() && !showFavoritesOnly && selectedCategory == ClockCategory.ALL
     val showThemes = query.isEmpty() && !showFavoritesOnly && selectedCategory == ClockCategory.ALL
 
-    // Animated switch between Staggered Masonry, Dense Grid, and Sleek List
+    // Animated switch between Staggered Masonry, Dense Uniform Grid, and Responsive List
     AnimatedContent(
       targetState = layoutMode,
       transitionSpec = { fadeIn(tween(220)).togetherWith(fadeOut(tween(160))) },
       modifier = Modifier.weight(1f).fillMaxWidth(),
       label = "library_layout_mode",
     ) { activeLayout ->
-      if (activeLayout == LibraryLayoutMode.LIST) {
-        LazyColumn(
-          contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 24.dp, top = 4.dp),
-          verticalArrangement = Arrangement.spacedBy(10.dp),
-          modifier = Modifier.fillMaxSize(),
-        ) {
-          if (showRecents) {
-            item(key = "list_recents") {
-              RecentStylesStrip(recentStyles = recentStyles, onSelectStyle = onSelectStyle)
-            }
-          }
-          if (showThemes) {
-            item(key = "list_themes") {
-              ThemePacksStrip(onApplyThemePack = onApplyThemePack)
-            }
-          }
-          if (styles.isEmpty()) {
-            item(key = "list_empty") {
-              EmptyFilterCard(onReset = {
-                onSearchQueryChange("")
-                onSelectCategory(ClockCategory.ALL)
-              })
+      when (activeLayout) {
+        LibraryLayoutMode.LIST -> {
+          val listCols = if (outerMaxWidth >= 720.dp) 2 else 1
+          if (listCols > 1) {
+            LazyVerticalGrid(
+              columns = GridCells.Fixed(listCols),
+              contentPadding = PaddingValues(start = horizontalPad, end = horizontalPad, bottom = 24.dp, top = 4.dp),
+              horizontalArrangement = Arrangement.spacedBy(12.dp),
+              verticalArrangement = Arrangement.spacedBy(12.dp),
+              modifier = Modifier.fillMaxSize(),
+            ) {
+              if (showRecents) {
+                item(span = { GridItemSpan(maxLineSpan) }, key = "list_recents") {
+                  RecentStylesStrip(recentStyles = recentStyles, onSelectStyle = onSelectStyle)
+                }
+              }
+              if (showThemes) {
+                item(span = { GridItemSpan(maxLineSpan) }, key = "list_themes") {
+                  ThemePacksStrip(onApplyThemePack = onApplyThemePack)
+                }
+              }
+              if (styles.isEmpty()) {
+                item(span = { GridItemSpan(maxLineSpan) }, key = "list_empty") {
+                  EmptyFilterCard(onReset = {
+                    onSearchQueryChange("")
+                    onSelectCategory(ClockCategory.ALL)
+                  })
+                }
+              } else {
+                gridItems(styles, key = { it.name }) { styleId ->
+                  LibraryListCard(
+                    styleId = styleId,
+                    weather = weather,
+                    liveTimeMillis = liveTimeMillis,
+                    isActive = styleId == activeStyleId,
+                    isFavorite = styleId in favoriteStyles,
+                    onClick = {
+                      if (styleId == ClockStyleId.CUSTOM_COMPOSER) onOpenBuilder() else onSelectStyle(styleId)
+                    },
+                    onToggleFavorite = { onToggleFavoriteStyle(styleId) },
+                  )
+                }
+              }
             }
           } else {
-            items(styles, key = { it.name }) { styleId ->
-              LibraryListCard(
-                styleId = styleId,
-                weather = weather,
-                liveTimeMillis = liveTimeMillis,
-                isActive = styleId == activeStyleId,
-                isFavorite = styleId in favoriteStyles,
-                onClick = {
-                  if (styleId == ClockStyleId.CUSTOM_COMPOSER) onOpenBuilder() else onSelectStyle(styleId)
-                },
-                onToggleFavorite = { onToggleFavoriteStyle(styleId) },
-              )
+            LazyColumn(
+              contentPadding = PaddingValues(start = horizontalPad, end = horizontalPad, bottom = 24.dp, top = 4.dp),
+              verticalArrangement = Arrangement.spacedBy(10.dp),
+              modifier = Modifier.fillMaxSize(),
+            ) {
+              if (showRecents) {
+                item(key = "list_recents") {
+                  RecentStylesStrip(recentStyles = recentStyles, onSelectStyle = onSelectStyle)
+                }
+              }
+              if (showThemes) {
+                item(key = "list_themes") {
+                  ThemePacksStrip(onApplyThemePack = onApplyThemePack)
+                }
+              }
+              if (styles.isEmpty()) {
+                item(key = "list_empty") {
+                  EmptyFilterCard(onReset = {
+                    onSearchQueryChange("")
+                    onSelectCategory(ClockCategory.ALL)
+                  })
+                }
+              } else {
+                items(styles, key = { it.name }) { styleId ->
+                  LibraryListCard(
+                    styleId = styleId,
+                    weather = weather,
+                    liveTimeMillis = liveTimeMillis,
+                    isActive = styleId == activeStyleId,
+                    isFavorite = styleId in favoriteStyles,
+                    onClick = {
+                      if (styleId == ClockStyleId.CUSTOM_COMPOSER) onOpenBuilder() else onSelectStyle(styleId)
+                    },
+                    onToggleFavorite = { onToggleFavoriteStyle(styleId) },
+                  )
+                }
+              }
             }
           }
         }
-      } else {
-        val isDense = activeLayout == LibraryLayoutMode.DENSE
-        val minCell = if (isDense) 108.dp else 160.dp
-        val gap = if (isDense) 8.dp else 12.dp
 
-        LazyVerticalStaggeredGrid(
-          columns = StaggeredGridCells.Adaptive(minSize = minCell),
-          contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 24.dp, top = 4.dp),
-          horizontalArrangement = Arrangement.spacedBy(gap),
-          verticalItemSpacing = gap,
-          modifier = Modifier.fillMaxSize(),
-        ) {
-          if (showRecents) {
-            item(span = StaggeredGridItemSpan.FullLine, key = "recent_strip") {
-              RecentStylesStrip(recentStyles = recentStyles, onSelectStyle = onSelectStyle)
+        LibraryLayoutMode.DENSE -> {
+          val minCell = if (isTabletOrWide) 134.dp else 108.dp
+          LazyVerticalGrid(
+            columns = GridCells.Adaptive(minSize = minCell),
+            contentPadding = PaddingValues(start = horizontalPad, end = horizontalPad, bottom = 24.dp, top = 4.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+            modifier = Modifier.fillMaxSize(),
+          ) {
+            if (showRecents) {
+              item(span = { GridItemSpan(maxLineSpan) }, key = "dense_recents") {
+                RecentStylesStrip(recentStyles = recentStyles, onSelectStyle = onSelectStyle)
+              }
+            }
+            if (showThemes) {
+              item(span = { GridItemSpan(maxLineSpan) }, key = "dense_themes") {
+                ThemePacksStrip(onApplyThemePack = onApplyThemePack)
+              }
+            }
+            if (styles.isEmpty()) {
+              item(span = { GridItemSpan(maxLineSpan) }, key = "dense_empty") {
+                EmptyFilterCard(onReset = {
+                  onSearchQueryChange("")
+                  onSelectCategory(ClockCategory.ALL)
+                })
+              }
+            } else {
+              gridItems(styles, key = { it.name }) { styleId ->
+                LibraryStaggeredCard(
+                  styleId = styleId,
+                  weather = weather,
+                  liveTimeMillis = liveTimeMillis,
+                  isDense = true,
+                  isActive = styleId == activeStyleId,
+                  isFavorite = styleId in favoriteStyles,
+                  onClick = {
+                    if (styleId == ClockStyleId.CUSTOM_COMPOSER) onOpenBuilder() else onSelectStyle(styleId)
+                  },
+                  onToggleFavorite = { onToggleFavoriteStyle(styleId) },
+                )
+              }
             }
           }
-          if (showThemes) {
-            item(span = StaggeredGridItemSpan.FullLine, key = "theme_packs_strip") {
-              ThemePacksStrip(onApplyThemePack = onApplyThemePack)
+        }
+
+        LibraryLayoutMode.STAGGERED -> {
+          val minCell = if (isTabletOrWide) 186.dp else 154.dp
+          LazyVerticalStaggeredGrid(
+            columns = StaggeredGridCells.Adaptive(minSize = minCell),
+            contentPadding = PaddingValues(start = horizontalPad, end = horizontalPad, bottom = 24.dp, top = 4.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            verticalItemSpacing = 12.dp,
+            modifier = Modifier.fillMaxSize(),
+          ) {
+            if (showRecents) {
+              item(span = StaggeredGridItemSpan.FullLine, key = "staggered_recent_strip") {
+                RecentStylesStrip(recentStyles = recentStyles, onSelectStyle = onSelectStyle)
+              }
             }
-          }
-          if (styles.isEmpty()) {
-            item(span = StaggeredGridItemSpan.FullLine, key = "empty_filter_state") {
-              EmptyFilterCard(onReset = {
-                onSearchQueryChange("")
-                onSelectCategory(ClockCategory.ALL)
-              })
+            if (showThemes) {
+              item(span = StaggeredGridItemSpan.FullLine, key = "staggered_theme_packs_strip") {
+                ThemePacksStrip(onApplyThemePack = onApplyThemePack)
+              }
             }
-          } else {
-            items(styles, key = { it.name }) { styleId ->
-              LibraryStaggeredCard(
-                styleId = styleId,
-                weather = weather,
-                liveTimeMillis = liveTimeMillis,
-                isDense = isDense,
-                isActive = styleId == activeStyleId,
-                isFavorite = styleId in favoriteStyles,
-                onClick = {
-                  if (styleId == ClockStyleId.CUSTOM_COMPOSER) onOpenBuilder() else onSelectStyle(styleId)
-                },
-                onToggleFavorite = { onToggleFavoriteStyle(styleId) },
-              )
+            if (styles.isEmpty()) {
+              item(span = StaggeredGridItemSpan.FullLine, key = "staggered_empty_filter_state") {
+                EmptyFilterCard(onReset = {
+                  onSearchQueryChange("")
+                  onSelectCategory(ClockCategory.ALL)
+                })
+              }
+            } else {
+              staggeredItems(styles, key = { it.name }) { styleId ->
+                LibraryStaggeredCard(
+                  styleId = styleId,
+                  weather = weather,
+                  liveTimeMillis = liveTimeMillis,
+                  isDense = false,
+                  isActive = styleId == activeStyleId,
+                  isFavorite = styleId in favoriteStyles,
+                  onClick = {
+                    if (styleId == ClockStyleId.CUSTOM_COMPOSER) onOpenBuilder() else onSelectStyle(styleId)
+                  },
+                  onToggleFavorite = { onToggleFavoriteStyle(styleId) },
+                )
+              }
             }
           }
         }
       }
+    }
     }
   }
 }
@@ -712,14 +835,20 @@ private fun RecentStylesStrip(
   recentStyles: List<ClockStyleId>,
   onSelectStyle: (ClockStyleId) -> Unit,
 ) {
-  Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+  Column(
+    modifier = Modifier.fillMaxWidth().padding(bottom = 4.dp),
+    verticalArrangement = Arrangement.spacedBy(8.dp),
+  ) {
     Text(
       text = "RECENTLY VIEWED",
       style = MaterialTheme.typography.labelMedium,
       color = MaterialTheme.colorScheme.primary,
     )
-    LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-      items(recentStyles, key = { "recent_${it.name}" }) { styleId ->
+    Row(
+      modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+      horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+      recentStyles.forEach { styleId ->
         Surface(
           shape = RoundedCornerShape(14.dp),
           color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.72f),
@@ -748,14 +877,20 @@ private fun RecentStylesStrip(
 private fun ThemePacksStrip(
   onApplyThemePack: (ClockThemePack) -> Unit,
 ) {
-  Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+  Column(
+    modifier = Modifier.fillMaxWidth().padding(bottom = 6.dp),
+    verticalArrangement = Arrangement.spacedBy(8.dp),
+  ) {
     Text(
       text = "CURATED THEME PACKS",
       style = MaterialTheme.typography.labelMedium,
       color = MaterialTheme.colorScheme.secondary,
     )
-    LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-      items(ClockPresets.themePacks, key = { it.id }) { pack ->
+    Row(
+      modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+      horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+      ClockPresets.themePacks.forEach { pack ->
         Surface(
           shape = RoundedCornerShape(14.dp),
           color = MaterialTheme.colorScheme.surface,

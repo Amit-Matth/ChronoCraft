@@ -260,6 +260,10 @@ object WidgetUpdater {
     val weather = runCatching { WeatherRepository(context).refreshIfStale() }.getOrDefault(com.example.model.WeatherSnapshot())
     val (widthDp, heightDp) = resolveWidgetDpSize(options, defaultWidthDp, defaultHeightDp)
     val density = context.resources.displayMetrics.density
+    val animateOverlay = config.animationsEnabled && config.animationStyle != com.example.model.ClockAnimationStyle.NONE
+
+    val views = RemoteViews(context.packageName, R.layout.widget_chrono_clock)
+    val baseMaxBytes = if (animateOverlay) 360_000 else 1_600_000
     val bitmap = ClockCanvasRenderer.renderToBitmap(
       context = context,
       config = config,
@@ -267,10 +271,40 @@ object WidgetUpdater {
       heightDp = heightDp,
       density = density,
       weather = weather,
+      maxBytes = baseMaxBytes,
+      drawAnimationOverlay = !animateOverlay,
+    )
+    views.setImageViewBitmap(R.id.widget_clock_image, bitmap)
+
+    val frameViewIds = intArrayOf(
+      R.id.widget_anim_frame_0,
+      R.id.widget_anim_frame_1,
+      R.id.widget_anim_frame_2,
+      R.id.widget_anim_frame_3,
+      R.id.widget_anim_frame_4,
+      R.id.widget_anim_frame_5,
+      R.id.widget_anim_frame_6,
+      R.id.widget_anim_frame_7,
     )
 
-    val views = RemoteViews(context.packageName, R.layout.widget_chrono_clock)
-    views.setImageViewBitmap(R.id.widget_clock_image, bitmap)
+    if (animateOverlay) {
+      val frames = ClockCanvasRenderer.renderAnimationOverlayFrames(
+        config = config,
+        widthDp = widthDp,
+        heightDp = heightDp,
+        density = density,
+        frameCount = frameViewIds.size,
+        maxBytesPerFrame = 32_000,
+      )
+      views.setViewVisibility(R.id.widget_anim_flipper, android.view.View.VISIBLE)
+      val intervalMs = (135f / config.animationSpeed.coerceIn(0.4f, 2.2f)).toInt().coerceIn(70, 260)
+      views.setInt(R.id.widget_anim_flipper, "setFlipInterval", intervalMs)
+      for (i in frameViewIds.indices) {
+        views.setImageViewBitmap(frameViewIds[i], frames[i])
+      }
+    } else {
+      views.setViewVisibility(R.id.widget_anim_flipper, android.view.View.GONE)
+    }
 
     val clickIntent = Intent(context, WidgetConfigureActivity::class.java).apply {
       putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)

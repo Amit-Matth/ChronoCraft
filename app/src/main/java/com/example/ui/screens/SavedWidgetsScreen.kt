@@ -15,13 +15,16 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.AddToHomeScreen
+import androidx.compose.material.icons.rounded.Apps
 import androidx.compose.material.icons.rounded.AutoAwesome
+import androidx.compose.material.icons.rounded.Bedtime
 import androidx.compose.material.icons.rounded.BrightnessAuto
 import androidx.compose.material.icons.rounded.ContentCopy
 import androidx.compose.material.icons.rounded.DarkMode
@@ -30,6 +33,7 @@ import androidx.compose.material.icons.rounded.LightMode
 import androidx.compose.material.icons.rounded.PlayCircleOutline
 import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material.icons.rounded.Tune
+import androidx.compose.material.icons.rounded.Wallpaper
 import androidx.compose.material.icons.rounded.Widgets
 import androidx.compose.material3.Button
 import androidx.compose.material3.FilledTonalButton
@@ -45,6 +49,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextOverflow
@@ -56,6 +61,7 @@ import com.example.model.SavedClockPreset
 import com.example.ui.components.LiveClockCanvas
 import com.example.ui.components.rememberLiveClockMillis
 import com.example.ui.viewmodel.ClockStudioUiState
+import com.example.widget.ChronoLiveWallpaperService
 
 @Composable
 fun SavedWidgetsScreen(
@@ -69,15 +75,22 @@ fun SavedWidgetsScreen(
   onOpenLibrary: () -> Unit,
   onSelectThemeMode: (AppThemeMode) -> Unit = {},
   onReplayOnboarding: () -> Unit = {},
+  onOpenAodExperience: () -> Unit = {},
+  onOpenIconPackStudio: () -> Unit = {},
   modifier: Modifier = Modifier,
 ) {
+  val context = LocalContext.current
   val liveTimeMillis = rememberLiveClockMillis(1000L)
 
-  LazyColumn(
+  Box(
     modifier = modifier.fillMaxSize().background(MaterialTheme.colorScheme.background),
-    contentPadding = PaddingValues(16.dp),
-    verticalArrangement = Arrangement.spacedBy(14.dp),
+    contentAlignment = Alignment.TopCenter,
   ) {
+    LazyColumn(
+      modifier = Modifier.fillMaxSize().widthIn(max = 880.dp),
+      contentPadding = PaddingValues(16.dp),
+      verticalArrangement = Arrangement.spacedBy(14.dp),
+    ) {
     item {
       Row(
         modifier = Modifier.fillMaxWidth(),
@@ -178,6 +191,61 @@ fun SavedWidgetsScreen(
                 modifier = Modifier.weight(1f).testTag("saved_theme_${mode.name.lowercase()}"),
               )
             }
+          }
+        }
+      }
+    }
+
+    item {
+      Surface(
+        shape = RoundedCornerShape(20.dp),
+        color = MaterialTheme.colorScheme.surface,
+        tonalElevation = 2.dp,
+        modifier =
+          Modifier
+            .fillMaxWidth()
+            .border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(20.dp)),
+      ) {
+        Column(
+          modifier = Modifier.padding(14.dp),
+          verticalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+          Text(
+            text = "DISPLAYS, LOCK SCREEN & HOME ICONS",
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.primary,
+          )
+          Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+          ) {
+            FilledTonalButton(
+              onClick = onOpenAodExperience,
+              modifier = Modifier.weight(1f).height(46.dp).testTag("saved_open_aod_btn"),
+              shape = RoundedCornerShape(14.dp),
+            ) {
+              Icon(Icons.Rounded.Bedtime, contentDescription = null, modifier = Modifier.size(17.dp))
+              Spacer(modifier = Modifier.width(5.dp))
+              Text("StandBy AOD", maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
+            FilledTonalButton(
+              onClick = { ChronoLiveWallpaperService.launchWallpaperPicker(context) },
+              modifier = Modifier.weight(1f).height(46.dp).testTag("saved_open_wallpaper_btn"),
+              shape = RoundedCornerShape(14.dp),
+            ) {
+              Icon(Icons.Rounded.Wallpaper, contentDescription = null, modifier = Modifier.size(17.dp))
+              Spacer(modifier = Modifier.width(5.dp))
+              Text("Lock/Home WP", maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
+          }
+          OutlinedButton(
+            onClick = onOpenIconPackStudio,
+            modifier = Modifier.fillMaxWidth().height(46.dp).testTag("saved_open_icons_btn"),
+            shape = RoundedCornerShape(14.dp),
+          ) {
+            Icon(Icons.Rounded.Apps, contentDescription = null, modifier = Modifier.size(18.dp))
+            Spacer(modifier = Modifier.width(6.dp))
+            Text("Icon Pack Studio (${uiState.iconPackConfig.packName})")
           }
         }
       }
@@ -405,6 +473,7 @@ fun SavedWidgetsScreen(
           }
         }
       }
+    }
     }
   }
 }

@@ -11,4 +11,69 @@
         android:contentDescription="@string/widget_clock_desc"
         android:scaleType="fitXY" />
 
+    <ViewFlipper
+        android:id="@+id/widget_anim_flipper"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:autoStart="true"
+        android:flipInterval="125"
+        android:visibility="gone">
+
+        <ImageView
+            android:id="@+id/widget_anim_frame_0"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:contentDescription="@null"
+            android:scaleType="fitXY" />
+
+        <ImageView
+            android:id="@+id/widget_anim_frame_1"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:contentDescription="@null"
+            android:scaleType="fitXY" />
+
+        <ImageView
+            android:id="@+id/widget_anim_frame_2"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:contentDescription="@null"
+            android:scaleType="fitXY" />
+
+        <ImageView
+            android:id="@+id/widget_anim_frame_3"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:contentDescription="@null"
+            android:scaleType="fitXY" />
+
+        <ImageView
+            android:id="@+id/widget_anim_frame_4"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:contentDescription="@null"
+            android:scaleType="fitXY" />
+
+        <ImageView
+            android:id="@+id/widget_anim_frame_5"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:contentDescription="@null"
+            android:scaleType="fitXY" />
+
+        <ImageView
+            android:id="@+id/widget_anim_frame_6"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:contentDescription="@null"
+            android:scaleType="fitXY" />
+
+        <ImageView
+            android:id="@+id/widget_anim_frame_7"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:contentDescription="@null"
+            android:scaleType="fitXY" />
+    </ViewFlipper>
+
 </FrameLayout>

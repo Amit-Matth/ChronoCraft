@@ -96,12 +96,64 @@ object ClockCanvasRenderer {
     weather: WeatherSnapshot = WeatherSnapshot(),
     maxBytes: Int = 2_200_000,
     displayMode: DisplayMode = DisplayMode.HOME_SCREEN,
+    drawAnimationOverlay: Boolean = true,
   ): Bitmap {
     val (wPx, hPx) = computeSafeBitmapSize(widthDp, heightDp, density, maxBytes)
     val bitmap = Bitmap.createBitmap(wPx, hPx, Bitmap.Config.ARGB_8888)
     val canvas = Canvas(bitmap)
-    drawClock(context, canvas, wPx.toFloat(), hPx.toFloat(), config, timeMillis, weather, displayMode, 0f)
+    drawClock(
+      context = context,
+      canvas = canvas,
+      width = wPx.toFloat(),
+      height = hPx.toFloat(),
+      config = config,
+      timeMillis = timeMillis,
+      weather = weather,
+      displayMode = displayMode,
+      animPhase = 0f,
+      drawAnimationOverlay = drawAnimationOverlay,
+    )
     return bitmap
+  }
+
+  fun renderAnimationOverlayFrames(
+    config: WidgetConfig,
+    widthDp: Int,
+    heightDp: Int,
+    density: Float,
+    timeMillis: Long = System.currentTimeMillis(),
+    frameCount: Int = 8,
+    maxBytesPerFrame: Int = 34_000,
+    displayMode: DisplayMode = DisplayMode.HOME_SCREEN,
+  ): List<Bitmap> {
+    val (wPx, hPx) = computeSafeBitmapSize(widthDp, heightDp, density, maxBytesPerFrame)
+    val tz = config.timeZoneId?.let { runCatching { TimeZone.getTimeZone(it) }.getOrNull() } ?: TimeZone.getDefault()
+    val cal = Calendar.getInstance(tz).apply { timeInMillis = timeMillis }
+    val moodConfig = if (displayMode != DisplayMode.AOD) {
+      ClockAnimationEffects.applyTimeBasedMood(config, cal)
+    } else {
+      config
+    }
+    val resolvedConfig = ClockAdaptiveDisplayRenderer.resolveConfigForMode(moodConfig, displayMode)
+    val minDim = min(wPx.toFloat(), hPx.toFloat())
+    val cornerPx = ((resolvedConfig.cornerRadiusDp / 160f) * minDim * 1.4f).coerceIn(0f, minDim * 0.48f)
+
+    return List(frameCount) { idx ->
+      val phase = idx.toFloat() / frameCount.toFloat()
+      val bmp = Bitmap.createBitmap(wPx, hPx, Bitmap.Config.ARGB_8888)
+      val canvas = Canvas(bmp)
+      ClockAnimationEffects.drawAnimationLayer(
+        canvas = canvas,
+        width = wPx.toFloat(),
+        height = hPx.toFloat(),
+        cornerPx = cornerPx,
+        config = resolvedConfig,
+        mode = displayMode,
+        animPhase = phase,
+        cal = cal,
+      )
+      bmp
+    }
   }
 
   fun drawClock(
@@ -114,6 +166,7 @@ object ClockCanvasRenderer {
     weather: WeatherSnapshot = WeatherSnapshot(),
     displayMode: DisplayMode = DisplayMode.HOME_SCREEN,
     animPhase: Float = 0f,
+    drawAnimationOverlay: Boolean = true,
   ) {
     val tz = config.timeZoneId?.let { runCatching { TimeZone.getTimeZone(it) }.getOrNull() } ?: TimeZone.getDefault()
     val cal = Calendar.getInstance(tz).apply { timeInMillis = timeMillis }
@@ -157,7 +210,9 @@ object ClockCanvasRenderer {
     }
 
     // Battery-conscious animation & decorative effects layer (always off on AOD)
-    ClockAnimationEffects.drawAnimationLayer(canvas, width, height, cornerPx, resolvedConfig, displayMode, animPhase, cal)
+    if (drawAnimationOverlay) {
+      ClockAnimationEffects.drawAnimationLayer(canvas, width, height, cornerPx, resolvedConfig, displayMode, animPhase, cal)
+    }
 
     // Tight balanced padding when transparent/no background; standard card padding otherwise
     val pad = if (fillMode == BackgroundFillMode.NONE) (minDim * 0.04f).coerceAtLeast(4f) else (minDim * 0.08f).coerceAtLeast(10f)

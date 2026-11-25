@@ -11,6 +11,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -98,6 +99,7 @@ fun StudioScreen(
   onSelectPreviewSize: (WidgetSizePreset) -> Unit,
   onCycleWallpaper: () -> Unit,
   onOpenFullPreview: () -> Unit,
+  onOpenAodExperience: () -> Unit = {},
   onSavePreset: (String) -> Unit,
   onPinWidget: () -> Unit,
   onApplyToActiveWidget: (Int) -> Unit,
@@ -143,92 +145,106 @@ fun StudioScreen(
     )
   }
 
-  Column(
+  BoxWithConstraints(
     modifier = modifier.fillMaxSize().background(MaterialTheme.colorScheme.background),
   ) {
-    if (uiState.editingAppWidgetId != null) {
+    val isTwoPane = maxWidth >= 700.dp
+    val compactHeight = maxHeight < 660.dp
+
+    @Composable
+    fun EditingBanner() {
+      if (uiState.editingAppWidgetId != null) {
+        Row(
+          modifier =
+            Modifier
+              .fillMaxWidth()
+              .background(MaterialTheme.colorScheme.primaryContainer)
+              .padding(horizontal = 16.dp, vertical = 8.dp),
+          verticalAlignment = Alignment.CenterVertically,
+          horizontalArrangement = Arrangement.SpaceBetween,
+        ) {
+          Text(
+            text = "Editing Home Widget #${uiState.editingAppWidgetId}",
+            style = MaterialTheme.typography.labelLarge,
+            color = MaterialTheme.colorScheme.onPrimaryContainer,
+          )
+          IconButton(onClick = onClearEditingWidget, modifier = Modifier.size(32.dp)) {
+            Icon(
+              imageVector = Icons.Rounded.Close,
+              contentDescription = "Exit editing",
+              tint = MaterialTheme.colorScheme.onPrimaryContainer,
+            )
+          }
+        }
+      }
+    }
+
+    @Composable
+    fun DisplayModeRow() {
       Row(
         modifier =
           Modifier
             .fillMaxWidth()
-            .background(MaterialTheme.colorScheme.primaryContainer)
-            .padding(horizontal = 16.dp, vertical = 8.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.SpaceBetween,
-      ) {
-        Text(
-          text = "Editing Home Widget #${uiState.editingAppWidgetId}",
-          style = MaterialTheme.typography.labelLarge,
-          color = MaterialTheme.colorScheme.onPrimaryContainer,
-        )
-        IconButton(onClick = onClearEditingWidget, modifier = Modifier.size(32.dp)) {
-          Icon(
-            imageVector = Icons.Rounded.Close,
-            contentDescription = "Exit editing",
-            tint = MaterialTheme.colorScheme.onPrimaryContainer,
-          )
-        }
-      }
-    }
-
-    // Display Mode Switcher (Home Screen / Lock Screen / AOD)
-    Row(
-      modifier =
-        Modifier
-          .fillMaxWidth()
             .padding(horizontal = 16.dp, vertical = 4.dp)
             .clip(RoundedCornerShape(14.dp))
             .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.72f))
             .padding(4.dp),
-      horizontalArrangement = Arrangement.spacedBy(4.dp),
-    ) {
-      DisplayMode.entries.forEach { mode ->
-        val selected = uiState.activeDisplayMode == mode
-        val icon = when (mode) {
-          DisplayMode.HOME_SCREEN -> Icons.Rounded.Home
-          DisplayMode.LOCK_SCREEN -> Icons.Rounded.Lock
-          DisplayMode.AOD -> Icons.Rounded.Bedtime
-        }
-        Row(
-          modifier =
-            Modifier
-              .weight(1f)
-              .height(40.dp)
-              .clip(RoundedCornerShape(10.dp))
-              .background(if (selected) MaterialTheme.colorScheme.primary else Color.Transparent)
-              .clickable { onSelectDisplayMode(mode) }
-              .testTag("display_mode_${mode.name.lowercase()}"),
-          horizontalArrangement = Arrangement.Center,
-          verticalAlignment = Alignment.CenterVertically,
-        ) {
-          Icon(
-            imageVector = icon,
-            contentDescription = mode.label,
-            tint = if (selected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.size(16.dp),
-          )
-          Spacer(modifier = Modifier.width(5.dp))
-          Text(
-            text = mode.shortLabel,
-            style = MaterialTheme.typography.labelLarge,
-            color = if (selected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
-            maxLines = 1,
-          )
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
+      ) {
+        DisplayMode.entries.forEach { mode ->
+          val selected = uiState.activeDisplayMode == mode
+          val icon = when (mode) {
+            DisplayMode.HOME_SCREEN -> Icons.Rounded.Home
+            DisplayMode.LOCK_SCREEN -> Icons.Rounded.Lock
+            DisplayMode.AOD -> Icons.Rounded.Bedtime
+          }
+          Row(
+            modifier =
+              Modifier
+                .weight(1f)
+                .height(40.dp)
+                .clip(RoundedCornerShape(10.dp))
+                .background(if (selected) MaterialTheme.colorScheme.primary else Color.Transparent)
+                .clickable { onSelectDisplayMode(mode) }
+                .testTag("display_mode_${mode.name.lowercase()}"),
+            horizontalArrangement = Arrangement.Center,
+            verticalAlignment = Alignment.CenterVertically,
+          ) {
+            Icon(
+              imageVector = icon,
+              contentDescription = mode.label,
+              tint = if (selected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
+              modifier = Modifier.size(16.dp),
+            )
+            Spacer(modifier = Modifier.width(5.dp))
+            Text(
+              text = mode.shortLabel,
+              style = MaterialTheme.typography.labelLarge,
+              color = if (selected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
+              maxLines = 1,
+            )
+          }
         }
       }
     }
 
-    // Live Interactive Preview Stage
-    val stageHeight = if (uiState.activeDisplayMode == DisplayMode.HOME_SCREEN && uiState.previewRows >= 3) 232.dp else 194.dp
-    Box(
-      modifier =
-        Modifier
-          .fillMaxWidth()
-          .padding(horizontal = 16.dp, vertical = 6.dp)
-          .height(stageHeight)
-          .clip(RoundedCornerShape(24.dp))
-          .border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(24.dp)),
-    ) {
+    @Composable
+    fun PreviewStageCard(stageMod: Modifier = Modifier) {
+      val stageHeight = when {
+        isTwoPane -> 260.dp
+        compactHeight -> 158.dp
+        uiState.activeDisplayMode == DisplayMode.HOME_SCREEN && uiState.previewRows >= 3 -> 224.dp
+        else -> 190.dp
+      }
+      Box(
+        modifier =
+          stageMod
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 6.dp)
+            .height(stageHeight)
+            .clip(RoundedCornerShape(24.dp))
+            .border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(24.dp)),
+      ) {
       if (uiState.activeDisplayMode == DisplayMode.AOD) {
         Box(modifier = Modifier.fillMaxSize().background(Color.Black))
       } else {
@@ -322,7 +338,24 @@ fun StudioScreen(
               }
             }
           }
-          if (uiState.activeDisplayMode != DisplayMode.AOD) {
+          if (uiState.activeDisplayMode == DisplayMode.AOD) {
+            Surface(
+              shape = RoundedCornerShape(12.dp),
+              color = MaterialTheme.colorScheme.primary,
+              modifier =
+                Modifier
+                  .clip(RoundedCornerShape(12.dp))
+                  .clickable(onClick = onOpenAodExperience)
+                  .testTag("studio_launch_aod_btn"),
+            ) {
+              Text(
+                text = "Launch AOD",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onPrimary,
+                modifier = Modifier.padding(horizontal = 9.dp, vertical = 6.dp),
+              )
+            }
+          } else {
             Surface(
               shape = CircleShape,
               color = Color.Black.copy(alpha = 0.55f),
@@ -397,170 +430,214 @@ fun StudioScreen(
           )
         }
       }
-    }
-
-    // 1-Tap Card Fill Quick Switcher (No Card / Glass / Card / Gradient) scoped to active DisplayMode
-    val activeFill = config.effectiveFillMode(uiState.activeDisplayMode)
-    val quickFills = if (uiState.activeDisplayMode == DisplayMode.AOD) {
-      listOf(BackgroundFillMode.NONE, BackgroundFillMode.SOLID)
-    } else {
-      listOf(BackgroundFillMode.NONE, BackgroundFillMode.GLASS, BackgroundFillMode.SOLID, BackgroundFillMode.GRADIENT)
-    }
-    Row(
-      modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
-      horizontalArrangement = Arrangement.spacedBy(6.dp),
-      verticalAlignment = Alignment.CenterVertically,
-    ) {
-      quickFills.forEach { fillMode ->
-        val selected = activeFill == fillMode
-        Box(
-          modifier =
-            Modifier
-              .weight(1f)
-              .height(44.dp)
-              .clip(RoundedCornerShape(12.dp))
-              .background(
-                if (selected) MaterialTheme.colorScheme.secondaryContainer
-                else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-              )
-              .border(
-                width = if (selected) 1.5.dp else 1.dp,
-                color = if (selected) MaterialTheme.colorScheme.secondary else MaterialTheme.colorScheme.outline.copy(alpha = 0.5f),
-                shape = RoundedCornerShape(12.dp),
-              )
-              .clickable { onSelectFillMode(fillMode, null) }
-              .testTag("card_style_${fillMode.name.lowercase()}"),
-          contentAlignment = Alignment.Center,
-        ) {
-          Text(
-            text = fillMode.label,
-            style = MaterialTheme.typography.labelLarge,
-            color = if (selected) MaterialTheme.colorScheme.onSecondaryContainer else MaterialTheme.colorScheme.onSurfaceVariant,
-          )
-        }
       }
     }
 
-    // Studio Tab Bar (Style, Colors, Motion, Layout)
-    Row(
-      modifier =
-        Modifier
-          .fillMaxWidth()
-          .padding(horizontal = 16.dp, vertical = 4.dp)
-          .clip(RoundedCornerShape(16.dp))
-          .background(MaterialTheme.colorScheme.surfaceVariant)
-          .padding(4.dp),
-      horizontalArrangement = Arrangement.spacedBy(4.dp),
-    ) {
-      StudioTab.entries.forEach { tab ->
-        val selected = uiState.activeStudioTab == tab
-        Box(
-          modifier =
-            Modifier
-              .weight(1f)
-              .clip(RoundedCornerShape(12.dp))
-              .background(if (selected) MaterialTheme.colorScheme.primary else Color.Transparent)
-              .clickable { onSelectTab(tab) }
-              .padding(vertical = 9.dp)
-              .testTag("studio_tab_${tab.name.lowercase()}"),
-          contentAlignment = Alignment.Center,
-        ) {
-          Text(
-            text = tab.label,
-            style = MaterialTheme.typography.labelLarge,
-            color = if (selected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
-          )
-        }
+    @Composable
+    fun QuickFillsRow() {
+      val activeFill = config.effectiveFillMode(uiState.activeDisplayMode)
+      val quickFills = if (uiState.activeDisplayMode == DisplayMode.AOD) {
+        listOf(BackgroundFillMode.NONE, BackgroundFillMode.SOLID)
+      } else {
+        listOf(BackgroundFillMode.NONE, BackgroundFillMode.GLASS, BackgroundFillMode.SOLID, BackgroundFillMode.GRADIENT)
       }
-    }
-
-    // Modular Tab Content
-    Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
-      AnimatedContent(targetState = uiState.activeStudioTab, label = "studio_tab_content") { tab ->
-        when (tab) {
-          StudioTab.STYLE ->
-            StudioStyleTabContent(
-              config = config,
-              weather = uiState.weather,
-              keepColors = keepColorsOnSwitch,
-              liveTimeMillis = liveTimeMillis,
-              onToggleKeepColors = { keepColorsOnSwitch = it },
-              onSelectStyle = { onSwitchStyle(it, keepColorsOnSwitch) },
-              onApplyThemePack = onApplyThemePack,
-              onResetDefaults = onResetDefaults,
-              onOpenBuilder = onOpenBuilder,
-              onUpdateConfig = onUpdateConfig,
-            )
-          StudioTab.COLORS ->
-            StudioColorsTabContent(
-              config = config,
-              activeDisplayMode = uiState.activeDisplayMode,
-              wallpaperSuggestions = uiState.wallpaperSuggestions,
-              onApplyPalette = onApplyPalette,
-              onSelectFillMode = onSelectFillMode,
-              onUpdateConfig = onUpdateConfig,
-            )
-          StudioTab.MOTION ->
-            StudioMotionTabContent(
-              config = config,
-              timeTravelEnabled = uiState.timeTravelEnabled,
-              timeTravelMinutes = uiState.timeTravelMinutes,
-              onSetTimeTravel = onSetTimeTravel,
-              onUpdateConfig = onUpdateConfig,
-            )
-          StudioTab.LAYOUT ->
-            StudioLayoutTabContent(
-              config = config,
-              weather = uiState.weather,
-              isLoadingWeather = uiState.isLoadingWeather,
-              citySearchResults = uiState.citySearchResults,
-              onUpdateConfig = onUpdateConfig,
-              onSearchCities = onSearchCities,
-              onSelectCity = onSelectCity,
-              onUseLocationWeather = onUseLocationWeather,
-              onRefreshWeather = onRefreshWeather,
-            )
-        }
-      }
-    }
-
-    // Sticky Bottom CTA Bar
-    Surface(
-      color = MaterialTheme.colorScheme.surface,
-      tonalElevation = 4.dp,
-      modifier = Modifier.fillMaxWidth(),
-    ) {
       Row(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
-        horizontalArrangement = Arrangement.spacedBy(10.dp),
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
         verticalAlignment = Alignment.CenterVertically,
       ) {
-        OutlinedButton(
-          onClick = { showSaveDialog = true },
-          modifier = Modifier.weight(0.9f).height(50.dp).testTag("studio_save_preset_btn"),
-          shape = RoundedCornerShape(14.dp),
-        ) {
-          Icon(Icons.Rounded.BookmarkAdd, contentDescription = null, modifier = Modifier.size(18.dp))
-          Spacer(modifier = Modifier.width(6.dp))
-          Text("Save", maxLines = 1)
+        quickFills.forEach { fillMode ->
+          val selected = activeFill == fillMode
+          Box(
+            modifier =
+              Modifier
+                .weight(1f)
+                .height(42.dp)
+                .clip(RoundedCornerShape(12.dp))
+                .background(
+                  if (selected) MaterialTheme.colorScheme.secondaryContainer
+                  else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                )
+                .border(
+                  width = if (selected) 1.5.dp else 1.dp,
+                  color = if (selected) MaterialTheme.colorScheme.secondary else MaterialTheme.colorScheme.outline.copy(alpha = 0.5f),
+                  shape = RoundedCornerShape(12.dp),
+                )
+                .clickable { onSelectFillMode(fillMode, null) }
+                .testTag("card_style_${fillMode.name.lowercase()}"),
+            contentAlignment = Alignment.Center,
+          ) {
+            Text(
+              text = fillMode.label,
+              style = MaterialTheme.typography.labelLarge,
+              color = if (selected) MaterialTheme.colorScheme.onSecondaryContainer else MaterialTheme.colorScheme.onSurfaceVariant,
+              maxLines = 1,
+            )
+          }
         }
+      }
+    }
 
-        val editingId = uiState.editingAppWidgetId
-        Button(
-          onClick = {
-            if (editingId != null) onApplyToActiveWidget(editingId) else onPinWidget()
-          },
-          modifier = Modifier.weight(1.4f).height(50.dp).testTag("studio_pin_widget_btn"),
-          shape = RoundedCornerShape(14.dp),
-        ) {
-          Icon(Icons.Rounded.AddToHomeScreen, contentDescription = null, modifier = Modifier.size(18.dp))
-          Spacer(modifier = Modifier.width(6.dp))
-          Text(
-            text = if (editingId != null) "Update Widget #$editingId" else "Add to Home Screen",
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-          )
+    @Composable
+    fun StudioTabsRow() {
+      Row(
+        modifier =
+          Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 4.dp)
+            .clip(RoundedCornerShape(16.dp))
+            .background(MaterialTheme.colorScheme.surfaceVariant)
+            .padding(4.dp),
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
+      ) {
+        StudioTab.entries.forEach { tab ->
+          val selected = uiState.activeStudioTab == tab
+          Box(
+            modifier =
+              Modifier
+                .weight(1f)
+                .clip(RoundedCornerShape(12.dp))
+                .background(if (selected) MaterialTheme.colorScheme.primary else Color.Transparent)
+                .clickable { onSelectTab(tab) }
+                .padding(vertical = 9.dp)
+                .testTag("studio_tab_${tab.name.lowercase()}"),
+            contentAlignment = Alignment.Center,
+          ) {
+            Text(
+              text = tab.label,
+              style = MaterialTheme.typography.labelLarge,
+              color = if (selected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
+              maxLines = 1,
+            )
+          }
         }
+      }
+    }
+
+    @Composable
+    fun StudioTabHost(mod: Modifier = Modifier) {
+      Box(modifier = mod) {
+        AnimatedContent(targetState = uiState.activeStudioTab, label = "studio_tab_content") { tab ->
+          when (tab) {
+            StudioTab.STYLE ->
+              StudioStyleTabContent(
+                config = config,
+                weather = uiState.weather,
+                keepColors = keepColorsOnSwitch,
+                liveTimeMillis = liveTimeMillis,
+                onToggleKeepColors = { keepColorsOnSwitch = it },
+                onSelectStyle = { onSwitchStyle(it, keepColorsOnSwitch) },
+                onApplyThemePack = onApplyThemePack,
+                onResetDefaults = onResetDefaults,
+                onOpenBuilder = onOpenBuilder,
+                onUpdateConfig = onUpdateConfig,
+              )
+            StudioTab.COLORS ->
+              StudioColorsTabContent(
+                config = config,
+                activeDisplayMode = uiState.activeDisplayMode,
+                wallpaperSuggestions = uiState.wallpaperSuggestions,
+                onApplyPalette = onApplyPalette,
+                onSelectFillMode = onSelectFillMode,
+                onUpdateConfig = onUpdateConfig,
+              )
+            StudioTab.MOTION ->
+              StudioMotionTabContent(
+                config = config,
+                timeTravelEnabled = uiState.timeTravelEnabled,
+                timeTravelMinutes = uiState.timeTravelMinutes,
+                onSetTimeTravel = onSetTimeTravel,
+                onUpdateConfig = onUpdateConfig,
+              )
+            StudioTab.LAYOUT ->
+              StudioLayoutTabContent(
+                config = config,
+                weather = uiState.weather,
+                isLoadingWeather = uiState.isLoadingWeather,
+                citySearchResults = uiState.citySearchResults,
+                onUpdateConfig = onUpdateConfig,
+                onSearchCities = onSearchCities,
+                onSelectCity = onSelectCity,
+                onUseLocationWeather = onUseLocationWeather,
+                onRefreshWeather = onRefreshWeather,
+              )
+          }
+        }
+      }
+    }
+
+    @Composable
+    fun StickyActionBar() {
+      Surface(
+        color = MaterialTheme.colorScheme.surface,
+        tonalElevation = 4.dp,
+        modifier = Modifier.fillMaxWidth(),
+      ) {
+        Row(
+          modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp),
+          horizontalArrangement = Arrangement.spacedBy(10.dp),
+          verticalAlignment = Alignment.CenterVertically,
+        ) {
+          OutlinedButton(
+            onClick = { showSaveDialog = true },
+            modifier = Modifier.weight(0.9f).height(48.dp).testTag("studio_save_preset_btn"),
+            shape = RoundedCornerShape(14.dp),
+          ) {
+            Icon(Icons.Rounded.BookmarkAdd, contentDescription = null, modifier = Modifier.size(18.dp))
+            Spacer(modifier = Modifier.width(6.dp))
+            Text("Save", maxLines = 1)
+          }
+
+          val editingId = uiState.editingAppWidgetId
+          Button(
+            onClick = {
+              if (editingId != null) onApplyToActiveWidget(editingId) else onPinWidget()
+            },
+            modifier = Modifier.weight(1.4f).height(48.dp).testTag("studio_pin_widget_btn"),
+            shape = RoundedCornerShape(14.dp),
+          ) {
+            Icon(Icons.Rounded.AddToHomeScreen, contentDescription = null, modifier = Modifier.size(18.dp))
+            Spacer(modifier = Modifier.width(6.dp))
+            Text(
+              text = if (editingId != null) "Update Widget #$editingId" else "Add to Home Screen",
+              maxLines = 1,
+              overflow = TextOverflow.Ellipsis,
+            )
+          }
+        }
+      }
+    }
+
+    if (isTwoPane) {
+      Row(modifier = Modifier.fillMaxSize()) {
+        Column(
+          modifier = Modifier.weight(0.95f).fillMaxSize().padding(top = 8.dp),
+          verticalArrangement = Arrangement.SpaceBetween,
+        ) {
+          Column {
+            EditingBanner()
+            DisplayModeRow()
+            PreviewStageCard()
+            QuickFillsRow()
+          }
+          StickyActionBar()
+        }
+        Column(
+          modifier = Modifier.weight(1.05f).fillMaxSize().padding(top = 8.dp),
+        ) {
+          StudioTabsRow()
+          StudioTabHost(mod = Modifier.weight(1f).fillMaxWidth())
+        }
+      }
+    } else {
+      Column(modifier = Modifier.fillMaxSize()) {
+        EditingBanner()
+        DisplayModeRow()
+        PreviewStageCard()
+        QuickFillsRow()
+        StudioTabsRow()
+        StudioTabHost(mod = Modifier.weight(1f).fillMaxWidth())
+        StickyActionBar()
       }
     }
   }

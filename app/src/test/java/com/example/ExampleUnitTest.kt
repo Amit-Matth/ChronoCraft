@@ -72,8 +72,43 @@ class ExampleUnitTest {
   }
 
   @Test
-  fun appThemeAndLibraryLayoutModesAreDefined() {
+  fun appThemeLibraryAndIconPackPresetsAreValid() {
     assertEquals(3, com.example.model.AppThemeMode.entries.size)
     assertEquals(3, com.example.model.LibraryLayoutMode.entries.size)
+    assertEquals(3, com.example.model.LiveWallpaperTarget.entries.size)
+    val aod = com.example.model.AodExperienceSettings()
+    assertTrue(aod.burnInProtection)
+    assertTrue(aod.dimLevel in 0.25f..1.0f)
+
+    assertEquals(8, com.example.model.IconPackPresets.presets.size)
+    assertEquals(6, com.example.model.IconShapeStyle.entries.size)
+    assertEquals(7, com.example.model.IconFinishStyle.entries.size)
+    val iconCfg = com.example.model.IconPackConfig()
+    assertTrue(iconCfg.iconScale in 0.45f..0.85f)
+  }
+
+  @Test
+  fun superIconPresetsAndExternalPacksAreValid() {
+    val cameraApp = com.example.model.LaunchableAppInfo(
+      packageName = "com.android.camera2",
+      activityName = "com.android.camera.CameraLauncher",
+      label = "Camera",
+      componentKey = "com.android.camera2/com.android.camera.CameraLauncher",
+      dominantColor = 0xFF38BDF8.toInt(),
+    )
+    val cameraShortcuts = com.example.model.SuperIconPresets.suggestedShortcutsForApp(cameraApp, listOf(cameraApp))
+    assertEquals(3, cameraShortcuts.size)
+    assertEquals(com.example.model.ShortcutActionType.CAMERA_PHOTO, cameraShortcuts[0].actionType)
+    assertEquals(com.example.model.ShortcutActionType.CAMERA_VIDEO, cameraShortcuts[1].actionType)
+    assertEquals(com.example.model.ShortcutActionType.CAMERA_SELFIE, cameraShortcuts[2].actionType)
+
+    val extPack = com.example.model.ExternalIconPackInfo(
+      packId = "zip:minimal",
+      name = "Minimal Pack",
+      sourceType = com.example.model.IconPackSourceType.IMPORTED_ZIP,
+      iconCount = 42,
+    )
+    assertEquals("zip:minimal", extPack.packId)
+    assertEquals(42, extPack.iconCount)
   }
 }

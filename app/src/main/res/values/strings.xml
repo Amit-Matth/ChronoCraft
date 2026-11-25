@@ -11,11 +11,17 @@
 
     <string name="nav_library">Library</string>
     <string name="nav_studio">Studio</string>
+    <string name="nav_icons">Icons</string>
     <string name="nav_preview">Preview</string>
-    <string name="nav_saved">My Widgets</string>
+    <string name="nav_saved">Saved</string>
 
     <string name="cta_pin_widget">Add to Home Screen</string>
     <string name="cta_save_preset">Save Preset</string>
     <string name="cta_apply_widget">Apply to Widget</string>
     <string name="dream_service_label">ChronoCraft Ambient AOD</string>
+    <string name="live_wallpaper_label">ChronoCraft Live Clock</string>
+    <string name="live_wallpaper_desc">Adaptive clock and backdrop wallpaper synced with ChronoCraft Studio.</string>
+    <string name="widget_super_icon_label">ChronoCraft Super Icon (Multi-Shortcut)</string>
+    <string name="widget_super_icon_desc">Interactive app icon tile with quick multi-shortcut actions (e.g. Photo, Video, Selfie).</string>
+    <string name="icon_pack_label">ChronoCraft Icon Pack</string>
 </resources>

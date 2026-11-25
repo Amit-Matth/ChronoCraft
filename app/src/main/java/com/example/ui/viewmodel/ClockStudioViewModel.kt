@@ -5,11 +5,15 @@ import android.app.PendingIntent
 import android.appwidget.AppWidgetManager
 import android.content.ComponentName
 import android.content.Intent
+import android.content.pm.PackageManager
+import android.net.Uri
 import android.os.Build
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.data.WidgetConfigRepository
 import com.example.model.ActiveHomeWidget
+import com.example.model.AodExperienceSettings
+import com.example.model.AppIconOverride
 import com.example.model.AppThemeMode
 import com.example.model.BackgroundFillMode
 import com.example.model.CardStyle
@@ -20,8 +24,15 @@ import com.example.model.ClockThemePack
 import com.example.model.ColorPalettePreset
 import com.example.model.CustomClockSpec
 import com.example.model.DisplayMode
+import com.example.model.ExternalIconPackInfo
+import com.example.model.IconPackConfig
+import com.example.model.IconPackPreset
+import com.example.model.LaunchableAppInfo
 import com.example.model.LibraryLayoutMode
+import com.example.model.LiveWallpaperTarget
 import com.example.model.SavedClockPreset
+import com.example.model.SuperIconPresets
+import com.example.model.SuperIconWidgetConfig
 import com.example.model.WallpaperOption
 import com.example.model.WeatherSnapshot
 import com.example.model.WidgetBackdropId
@@ -31,8 +42,12 @@ import com.example.weather.GeocodingPlace
 import com.example.weather.WeatherRepository
 import com.example.widget.ChronoAnalogWidgetProvider
 import com.example.widget.ChronoClockWidgetProvider
+import com.example.widget.ChronoSuperIconWidgetProvider
 import com.example.widget.ChronoWideWidgetProvider
 import com.example.widget.ClockTickScheduler
+import com.example.widget.IconPackImporter
+import com.example.widget.IconPackRenderer
+import com.example.widget.PinSuperIconReceiver
 import com.example.widget.PinWidgetReceiver
 import com.example.widget.WallpaperColorExtractor
 import com.example.widget.WidgetUpdater
@@ -74,6 +89,16 @@ data class ClockStudioUiState(
   val timeTravelEnabled: Boolean = false,
   val timeTravelMinutes: Int = 581,
   val showBuilderSheet: Boolean = false,
+  val showAodExperience: Boolean = false,
+  val aodSettings: AodExperienceSettings = AodExperienceSettings(),
+  val liveWallpaperTarget: LiveWallpaperTarget = LiveWallpaperTarget.LOCK_SCREEN,
+  val iconPackConfig: IconPackConfig = IconPackConfig(),
+  val appIconOverrides: Map<String, AppIconOverride> = emptyMap(),
+  val installedApps: List<LaunchableAppInfo> = emptyList(),
+  val installedApkIconPacks: List<ExternalIconPackInfo> = emptyList(),
+  val importedIconPacks: List<ExternalIconPackInfo> = emptyList(),
+  val superIconConfig: SuperIconWidgetConfig = SuperIconWidgetConfig(),
+  val isLoadingApps: Boolean = false,
   val savedPresets: List<SavedClockPreset> = emptyList(),
   val activeHomeWidgets: List<ActiveHomeWidget> = emptyList(),
   val weather: WeatherSnapshot = WeatherSnapshot(),
@@ -134,9 +159,239 @@ class ClockStudioViewModel(application: Application) : AndroidViewModel(applicat
         _uiState.update { it.copy(weather = snapshot) }
       }
     }
+    viewModelScope.launch {
+      repo.aodSettingsFlow.collect { aod ->
+        _uiState.update { it.copy(aodSettings = aod) }
+      }
+    }
+    viewModelScope.launch {
+      repo.liveWallpaperTargetFlow.collect { target ->
+        _uiState.update { it.copy(liveWallpaperTarget = target) }
+      }
+    }
+    viewModelScope.launch {
+      repo.liveWallpaperOptionFlow.collect { option ->
+        _uiState.update { it.copy(previewWallpaper = option) }
+      }
+    }
+    viewModelScope.launch {
+      repo.liveWallpaperPhotoUriFlow.collect { uri ->
+        if (uri != null) {
+          _uiState.update { it.copy(customWallpaperUri = uri) }
+        }
+      }
+    }
+    viewModelScope.launch {
+      repo.iconPackConfigFlow.collect { cfg ->
+        _uiState.update { it.copy(iconPackConfig = cfg) }
+      }
+    }
+    viewModelScope.launch {
+      repo.appIconOverridesFlow.collect { overrides ->
+        _uiState.update { it.copy(appIconOverrides = overrides) }
+      }
+    }
+    viewModelScope.launch {
+      repo.importedPacksFlow.collect { imported ->
+        _uiState.update { it.copy(importedIconPacks = imported) }
+      }
+    }
+    viewModelScope.launch {
+      repo.superIconDraftFlow.collect { superCfg ->
+        _uiState.update { it.copy(superIconConfig = superCfg) }
+      }
+    }
+    loadInstalledApps()
     refreshWeatherIfNeeded()
     refreshActiveWidgets()
     extractWallpaperSuggestions(WallpaperOption.AURORA, null)
+  }
+
+  fun loadInstalledApps() {
+    viewModelScope.launch {
+      _uiState.update { it.copy(isLoadingApps = true) }
+      val (apps, apkPacks) = withContext(Dispatchers.IO) {
+        IconPackRenderer.loadLaunchableApps(getApplication()) to
+          IconPackImporter.discoverInstalledIconPacks(getApplication())
+      }
+      _uiState.update { state ->
+        val curSuper = state.superIconConfig
+        val initializedSuper = if (curSuper.primaryPackage.isBlank() && apps.isNotEmpty()) {
+          val cameraApp = apps.firstOrNull { "camera" in it.packageName.lowercase() || "camera" in it.label.lowercase() }
+            ?: apps.first()
+          curSuper.copy(
+            primaryPackage = cameraApp.packageName,
+            primaryActivity = cameraApp.activityName,
+            primaryLabel = cameraApp.label,
+            shortcuts = SuperIconPresets.suggestedShortcutsForApp(cameraApp, apps),
+          )
+        } else {
+          curSuper
+        }
+        state.copy(
+          installedApps = apps,
+          installedApkIconPacks = apkPacks,
+          superIconConfig = initializedSuper,
+          isLoadingApps = false,
+        )
+      }
+    }
+  }
+
+  fun openAodExperience() {
+    _uiState.update { it.copy(showAodExperience = true) }
+  }
+
+  fun closeAodExperience() {
+    _uiState.update { it.copy(showAodExperience = false) }
+  }
+
+  fun updateAodSettings(settings: AodExperienceSettings) {
+    _uiState.update { it.copy(aodSettings = settings) }
+    viewModelScope.launch { repo.saveAodSettings(settings) }
+  }
+
+  fun setLiveWallpaperTarget(target: LiveWallpaperTarget) {
+    _uiState.update { it.copy(liveWallpaperTarget = target) }
+    viewModelScope.launch { repo.setLiveWallpaperTarget(target) }
+  }
+
+  fun updateIconPackConfig(config: IconPackConfig) {
+    _uiState.update { it.copy(iconPackConfig = config) }
+    viewModelScope.launch { repo.saveIconPackConfig(config) }
+  }
+
+  fun applyIconPackPreset(preset: IconPackPreset) {
+    updateIconPackConfig(preset.config)
+    _uiState.update { it.copy(statusMessage = "Applied ${preset.name} icon pack") }
+  }
+
+  fun syncIconPackWithActiveClock() {
+    val clock = _uiState.value.activeConfig
+    val synced = _uiState.value.iconPackConfig.copy(
+      packName = "${clock.styleId.displayName} Icons",
+      backgroundColor = clock.backgroundColor,
+      secondaryColor = clock.backgroundSecondaryColor,
+      iconTintColor = clock.accentColor,
+      borderColor = clock.accentColor,
+    )
+    updateIconPackConfig(synced)
+    _uiState.update { it.copy(statusMessage = "Matched icons to ${clock.styleId.displayName}") }
+  }
+
+  fun saveAppIconOverride(override: AppIconOverride) {
+    viewModelScope.launch {
+      repo.saveAppIconOverride(override)
+      _uiState.update { it.copy(statusMessage = "Updated custom icon") }
+    }
+  }
+
+  fun clearAppIconOverride(componentKey: String) {
+    viewModelScope.launch {
+      repo.clearAppIconOverride(componentKey)
+      _uiState.update { it.copy(statusMessage = "Reset icon customization") }
+    }
+  }
+
+  fun selectExternalIconPack(packId: String?) {
+    val cur = _uiState.value.iconPackConfig
+    updateIconPackConfig(cur.copy(activeExternalPackId = packId))
+    val packName = (_uiState.value.installedApkIconPacks + _uiState.value.importedIconPacks)
+      .firstOrNull { it.packId == packId }?.name
+    _uiState.update {
+      it.copy(
+        statusMessage = if (packName != null) {
+          "Using $packName icons"
+        } else {
+          "Switched back to ChronoCraft styled icons"
+        },
+      )
+    }
+  }
+
+  fun importZipIconPack(uri: Uri) {
+    viewModelScope.launch {
+      val res = withContext(Dispatchers.IO) {
+        IconPackImporter.importZipIconPack(getApplication(), uri)
+      }
+      res.onSuccess { pack ->
+        repo.addImportedPack(pack)
+        val cur = _uiState.value.iconPackConfig
+        updateIconPackConfig(cur.copy(activeExternalPackId = pack.packId))
+        _uiState.update { it.copy(statusMessage = "Imported \"${pack.name}\" (${pack.iconCount} icons)") }
+      }.onFailure { err ->
+        _uiState.update { it.copy(statusMessage = err.message ?: "Could not import icon pack ZIP") }
+      }
+    }
+  }
+
+  fun removeImportedPack(packId: String) {
+    viewModelScope.launch {
+      repo.removeImportedPack(packId)
+      val cur = _uiState.value.iconPackConfig
+      if (cur.activeExternalPackId == packId) {
+        updateIconPackConfig(cur.copy(activeExternalPackId = null))
+      }
+      _uiState.update { it.copy(statusMessage = "Removed imported icon pack") }
+    }
+  }
+
+  fun updateSuperIconConfig(config: SuperIconWidgetConfig) {
+    _uiState.update { it.copy(superIconConfig = config) }
+    viewModelScope.launch { repo.saveSuperIconDraft(config) }
+  }
+
+  fun selectSuperIconApp(app: LaunchableAppInfo) {
+    val suggested = SuperIconPresets.suggestedShortcutsForApp(app, _uiState.value.installedApps)
+    val updated = _uiState.value.superIconConfig.copy(
+      primaryPackage = app.packageName,
+      primaryActivity = app.activityName,
+      primaryLabel = app.label,
+      shortcuts = suggested,
+    )
+    updateSuperIconConfig(updated)
+  }
+
+  fun requestPinSuperIconWidget() {
+    val context = getApplication<Application>().applicationContext
+    val mgr = AppWidgetManager.getInstance(context)
+    val cfg = _uiState.value.superIconConfig
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && mgr.isRequestPinAppWidgetSupported) {
+      viewModelScope.launch {
+        repo.setPendingSuperIconConfig(cfg)
+        val callbackIntent = Intent(context, PinSuperIconReceiver::class.java)
+        val successCallback = PendingIntent.getBroadcast(
+          context,
+          (System.currentTimeMillis() and 0x7FFFFFFFL).toInt(),
+          callbackIntent,
+          PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE,
+        )
+        val provider = ComponentName(context, ChronoSuperIconWidgetProvider::class.java)
+        val ok = mgr.requestPinAppWidget(provider, null, successCallback)
+        if (!ok) {
+          _uiState.update { it.copy(statusMessage = "Long-press home screen → Widgets → ChronoCraft Super Icon") }
+        }
+      }
+    } else {
+      _uiState.update { it.copy(statusMessage = "Long-press home screen → Widgets → ChronoCraft Super Icon") }
+    }
+  }
+
+  fun pinAppIconToHome(app: LaunchableAppInfo): Boolean {
+    val ctx = getApplication<Application>().applicationContext
+    val cfg = _uiState.value.iconPackConfig
+    val ov = _uiState.value.appIconOverrides[app.componentKey]
+    val extPack = (_uiState.value.installedApkIconPacks + _uiState.value.importedIconPacks)
+      .firstOrNull { it.packId == cfg.activeExternalPackId }
+    val ok = IconPackRenderer.pinThemedShortcutToHome(ctx, app, cfg, ov, extPack)
+    if (ok) {
+      viewModelScope.launch { repo.markAppPinned(app.componentKey) }
+      val name = ov?.customLabel?.takeIf { it.isNotBlank() } ?: app.label
+      _uiState.update { it.copy(statusMessage = "Adding \"$name\" icon to Home Screen") }
+    } else {
+      _uiState.update { it.copy(statusMessage = "Your home launcher doesn't support direct icon pinning") }
+    }
+    return ok
   }
 
   fun setAppThemeMode(mode: AppThemeMode) {
@@ -522,6 +777,9 @@ class ClockStudioViewModel(application: Application) : AndroidViewModel(applicat
         previewWallpaper = option,
         customWallpaperUri = resolvedCustomUri,
       )
+    }
+    viewModelScope.launch {
+      repo.setLiveWallpaperBackdrop(option, resolvedCustomUri)
     }
     extractWallpaperSuggestions(option, resolvedCustomUri)
   }
