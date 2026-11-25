@@ -10,13 +10,21 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.data.WidgetConfigRepository
 import com.example.model.ActiveHomeWidget
+import com.example.model.AppThemeMode
+import com.example.model.BackgroundFillMode
+import com.example.model.CardStyle
 import com.example.model.ClockCategory
 import com.example.model.ClockPresets
 import com.example.model.ClockStyleId
+import com.example.model.ClockThemePack
 import com.example.model.ColorPalettePreset
+import com.example.model.CustomClockSpec
+import com.example.model.DisplayMode
+import com.example.model.LibraryLayoutMode
 import com.example.model.SavedClockPreset
 import com.example.model.WallpaperOption
 import com.example.model.WeatherSnapshot
+import com.example.model.WidgetBackdropId
 import com.example.model.WidgetConfig
 import com.example.model.WidgetSizePreset
 import com.example.weather.GeocodingPlace
@@ -26,30 +34,46 @@ import com.example.widget.ChronoClockWidgetProvider
 import com.example.widget.ChronoWideWidgetProvider
 import com.example.widget.ClockTickScheduler
 import com.example.widget.PinWidgetReceiver
+import com.example.widget.WallpaperColorExtractor
 import com.example.widget.WidgetUpdater
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 enum class StudioTab(val label: String) {
   STYLE("Style"),
   COLORS("Colors"),
-  FONTS("Fonts"),
+  MOTION("Motion"),
   LAYOUT("Layout"),
 }
 
 data class ClockStudioUiState(
+  val appThemeMode: AppThemeMode = AppThemeMode.SYSTEM,
+  val libraryLayoutMode: LibraryLayoutMode = LibraryLayoutMode.STAGGERED,
+  val isPrefsLoaded: Boolean = false,
+  val onboardingCompleted: Boolean = true,
   val selectedCategory: ClockCategory = ClockCategory.ALL,
-  val activeConfig: WidgetConfig = ClockPresets.defaultConfigForStyle(ClockStyleId.BENTO_CALENDAR),
+  val searchQuery: String = "",
+  val showFavoritesOnly: Boolean = false,
+  val favoriteStyles: Set<ClockStyleId> = emptySet(),
+  val recentStyles: List<ClockStyleId> = emptyList(),
+  val activeConfig: WidgetConfig = ClockPresets.defaultConfigForStyle(ClockStyleId.WEIGHT_STACK_FLOAT),
   val activeStudioTab: StudioTab = StudioTab.STYLE,
+  val activeDisplayMode: DisplayMode = DisplayMode.HOME_SCREEN,
   val editingAppWidgetId: Int? = null,
   val previewWallpaper: WallpaperOption = WallpaperOption.AURORA,
   val customWallpaperUri: String? = null,
+  val wallpaperSuggestions: List<ColorPalettePreset> = emptyList(),
   val previewSizePreset: WidgetSizePreset = WidgetSizePreset.CLASSIC_4X2,
   val previewCols: Int = 4,
   val previewRows: Int = 2,
+  val timeTravelEnabled: Boolean = false,
+  val timeTravelMinutes: Int = 581,
+  val showBuilderSheet: Boolean = false,
   val savedPresets: List<SavedClockPreset> = emptyList(),
   val activeHomeWidgets: List<ActiveHomeWidget> = emptyList(),
   val weather: WeatherSnapshot = WeatherSnapshot(),
@@ -69,6 +93,21 @@ class ClockStudioViewModel(application: Application) : AndroidViewModel(applicat
 
   init {
     viewModelScope.launch {
+      repo.appThemeModeFlow.collect { mode ->
+        _uiState.update { it.copy(appThemeMode = mode) }
+      }
+    }
+    viewModelScope.launch {
+      repo.libraryLayoutModeFlow.collect { layout ->
+        _uiState.update { it.copy(libraryLayoutMode = layout) }
+      }
+    }
+    viewModelScope.launch {
+      repo.onboardingCompletedFlow.collect { completed ->
+        _uiState.update { it.copy(onboardingCompleted = completed, isPrefsLoaded = true) }
+      }
+    }
+    viewModelScope.launch {
       repo.activeDraftFlow.collect { draft ->
         if (_uiState.value.editingAppWidgetId == null) {
           _uiState.update { it.copy(activeConfig = draft) }
@@ -81,12 +120,60 @@ class ClockStudioViewModel(application: Application) : AndroidViewModel(applicat
       }
     }
     viewModelScope.launch {
+      repo.favoriteStylesFlow.collect { favorites ->
+        _uiState.update { it.copy(favoriteStyles = favorites) }
+      }
+    }
+    viewModelScope.launch {
+      repo.recentStylesFlow.collect { recents ->
+        _uiState.update { it.copy(recentStyles = recents) }
+      }
+    }
+    viewModelScope.launch {
       weatherRepo.weatherFlow.collect { snapshot ->
         _uiState.update { it.copy(weather = snapshot) }
       }
     }
     refreshWeatherIfNeeded()
     refreshActiveWidgets()
+    extractWallpaperSuggestions(WallpaperOption.AURORA, null)
+  }
+
+  fun setAppThemeMode(mode: AppThemeMode) {
+    _uiState.update { it.copy(appThemeMode = mode) }
+    viewModelScope.launch { repo.setAppThemeMode(mode) }
+  }
+
+  fun cycleAppThemeMode() {
+    val next = when (_uiState.value.appThemeMode) {
+      AppThemeMode.SYSTEM -> AppThemeMode.LIGHT
+      AppThemeMode.LIGHT -> AppThemeMode.DARK
+      AppThemeMode.DARK -> AppThemeMode.SYSTEM
+    }
+    setAppThemeMode(next)
+  }
+
+  fun setLibraryLayoutMode(mode: LibraryLayoutMode) {
+    _uiState.update { it.copy(libraryLayoutMode = mode) }
+    viewModelScope.launch { repo.setLibraryLayoutMode(mode) }
+  }
+
+  fun completeOnboarding() {
+    _uiState.update { it.copy(onboardingCompleted = true) }
+    viewModelScope.launch { repo.setOnboardingCompleted(true) }
+  }
+
+  fun replayOnboarding() {
+    _uiState.update { it.copy(onboardingCompleted = false) }
+  }
+
+  private fun extractWallpaperSuggestions(wallpaper: WallpaperOption, customUri: String?) {
+    viewModelScope.launch {
+      val suggestions = withContext(Dispatchers.Default) {
+        WallpaperColorExtractor.extractSuggestions(getApplication(), wallpaper, customUri)
+      }
+      _uiState.update { it.copy(wallpaperSuggestions = suggestions) }
+    }
   }
 
   fun refreshWeatherIfNeeded() {
@@ -165,11 +252,27 @@ class ClockStudioViewModel(application: Application) : AndroidViewModel(applicat
   }
 
   fun selectCategory(category: ClockCategory) {
-    _uiState.update { it.copy(selectedCategory = category) }
+    _uiState.update { it.copy(selectedCategory = category, showFavoritesOnly = false) }
+  }
+
+  fun setSearchQuery(query: String) {
+    _uiState.update { it.copy(searchQuery = query) }
+  }
+
+  fun toggleShowFavoritesOnly() {
+    _uiState.update { it.copy(showFavoritesOnly = !it.showFavoritesOnly) }
+  }
+
+  fun toggleFavorite(styleId: ClockStyleId) {
+    viewModelScope.launch { repo.toggleFavoriteStyle(styleId) }
   }
 
   fun selectStudioTab(tab: StudioTab) {
     _uiState.update { it.copy(activeStudioTab = tab) }
+  }
+
+  fun selectDisplayMode(mode: DisplayMode) {
+    _uiState.update { it.copy(activeDisplayMode = mode) }
   }
 
   fun selectStyleFromLibrary(styleId: ClockStyleId) {
@@ -177,7 +280,11 @@ class ClockStudioViewModel(application: Application) : AndroidViewModel(applicat
     val defaultSize = when {
       styleId == ClockStyleId.WORLD_AGENDA_PRO || styleId == ClockStyleId.BENTO_CALENDAR ->
         WidgetSizePreset.EXPANDED_4X3
-      styleId.category == ClockCategory.ANALOG -> WidgetSizePreset.SQUARE_2X2
+      styleId.category == ClockCategory.ANALOG ||
+        styleId.category == ClockCategory.ART_BACKDROP ||
+        styleId == ClockStyleId.FLOATING_ANALOG_PURE ||
+        styleId == ClockStyleId.SOLAR_ORBIT_PLANETS ->
+        WidgetSizePreset.SQUARE_2X2
       else -> WidgetSizePreset.CLASSIC_4X2
     }
     _uiState.update {
@@ -189,29 +296,182 @@ class ClockStudioViewModel(application: Application) : AndroidViewModel(applicat
         previewRows = defaultSize.rows,
       )
     }
-    viewModelScope.launch { repo.saveActiveDraft(newConfig) }
+    viewModelScope.launch {
+      repo.saveActiveDraft(newConfig)
+      repo.recordRecentStyle(styleId)
+    }
+  }
+
+  fun pickRandomStyle(): ClockStyleId {
+    val current = _uiState.value.activeConfig.styleId
+    val pool = ClockStyleId.entries.filter { it != current && it != ClockStyleId.CUSTOM_COMPOSER }
+    val chosen = pool.random()
+    selectStyleFromLibrary(chosen)
+    _uiState.update { it.copy(statusMessage = "Loaded \"${chosen.displayName}\"") }
+    return chosen
   }
 
   fun switchStyleInStudio(styleId: ClockStyleId, keepColors: Boolean = true) {
     val cur = _uiState.value.activeConfig
+    val targetDefault = ClockPresets.defaultConfigForStyle(styleId)
     val updated = if (keepColors) {
-      cur.copy(styleId = styleId, fontId = styleId.defaultFont)
+      cur.copy(
+        styleId = styleId,
+        fontId = styleId.defaultFont,
+        backdropId = if (targetDefault.backdropId != WidgetBackdropId.NONE) targetDefault.backdropId else cur.backdropId,
+        backgroundFillMode = if (targetDefault.backdropId != WidgetBackdropId.NONE) BackgroundFillMode.ARTWORK else cur.backgroundFillMode,
+        cardStyle = if (targetDefault.backdropId != WidgetBackdropId.NONE) CardStyle.SOLID else cur.cardStyle,
+        backgroundAlpha = if (targetDefault.backdropId != WidgetBackdropId.NONE) 1.0f else cur.backgroundAlpha,
+      )
     } else {
-      ClockPresets.defaultConfigForStyle(styleId)
+      targetDefault
+    }
+    updateConfig(updated)
+    viewModelScope.launch { repo.recordRecentStyle(styleId) }
+  }
+
+  fun resetToOriginalDefaults() {
+    val curStyle = _uiState.value.activeConfig.styleId
+    val reset = ClockPresets.defaultConfigForStyle(curStyle)
+    updateConfig(reset)
+    _uiState.update { it.copy(statusMessage = "Reset ${curStyle.displayName} to defaults") }
+  }
+
+  fun applyThemePack(pack: ClockThemePack) {
+    val updated = ClockPresets.applyThemePack(_uiState.value.activeConfig, pack)
+    updateConfig(updated)
+    _uiState.update { it.copy(statusMessage = "Applied ${pack.name} theme") }
+  }
+
+  fun setCardStyle(cardStyle: CardStyle) {
+    val mode = when (cardStyle) {
+      CardStyle.TRANSPARENT -> BackgroundFillMode.NONE
+      CardStyle.FROSTED -> BackgroundFillMode.GLASS
+      CardStyle.SOLID -> BackgroundFillMode.SOLID
+    }
+    setBackgroundFillMode(mode)
+  }
+
+  fun setBackgroundFillMode(fillMode: BackgroundFillMode, photoUri: String? = null) {
+    val state = _uiState.value
+    val cur = state.activeConfig
+    val updated = when (state.activeDisplayMode) {
+      DisplayMode.HOME_SCREEN -> {
+        val (card, alpha, border) = when (fillMode) {
+          BackgroundFillMode.NONE -> Triple(CardStyle.TRANSPARENT, 0.0f, false)
+          BackgroundFillMode.GLASS -> Triple(CardStyle.FROSTED, 0.44f, true)
+          BackgroundFillMode.SOLID -> Triple(CardStyle.SOLID, 0.94f, true)
+          BackgroundFillMode.GRADIENT -> Triple(CardStyle.SOLID, 0.94f, false)
+          BackgroundFillMode.ARTWORK -> Triple(CardStyle.SOLID, 1.0f, true)
+          BackgroundFillMode.PHOTO -> Triple(CardStyle.SOLID, 0.96f, true)
+        }
+        val nextBackdrop = if (fillMode == BackgroundFillMode.ARTWORK && cur.backdropId == WidgetBackdropId.NONE) {
+          WidgetBackdropId.AURORA_ART
+        } else if (fillMode != BackgroundFillMode.ARTWORK) {
+          WidgetBackdropId.NONE
+        } else {
+          cur.backdropId
+        }
+        cur.copy(
+          backgroundFillMode = fillMode,
+          cardStyle = card,
+          backdropId = nextBackdrop,
+          customPhotoUri = photoUri ?: cur.customPhotoUri,
+          backgroundAlpha = alpha,
+          showBorder = border,
+        )
+      }
+      DisplayMode.LOCK_SCREEN -> {
+        val (card, alpha) = when (fillMode) {
+          BackgroundFillMode.NONE -> CardStyle.TRANSPARENT to 0.0f
+          BackgroundFillMode.GLASS -> CardStyle.FROSTED to 0.30f
+          BackgroundFillMode.SOLID, BackgroundFillMode.GRADIENT -> CardStyle.SOLID to 0.86f
+          BackgroundFillMode.ARTWORK, BackgroundFillMode.PHOTO -> CardStyle.SOLID to 0.92f
+        }
+        val nextLockBackdrop = if (fillMode == BackgroundFillMode.ARTWORK && cur.lockBackdropId == WidgetBackdropId.NONE) {
+          WidgetBackdropId.AURORA_ART
+        } else if (fillMode != BackgroundFillMode.ARTWORK) {
+          WidgetBackdropId.NONE
+        } else {
+          cur.lockBackdropId
+        }
+        cur.copy(
+          lockBackgroundFillMode = fillMode,
+          lockCardStyle = card,
+          lockBackdropId = nextLockBackdrop,
+          lockCustomPhotoUri = photoUri ?: cur.lockCustomPhotoUri,
+          lockBackgroundAlpha = alpha,
+        )
+      }
+      DisplayMode.AOD -> {
+        val (card, alpha) = when (fillMode) {
+          BackgroundFillMode.NONE -> CardStyle.TRANSPARENT to 0.0f
+          else -> CardStyle.FROSTED to 0.16f
+        }
+        cur.copy(
+          aodCardStyle = card,
+          aodBackgroundAlpha = alpha,
+        )
+      }
     }
     updateConfig(updated)
   }
 
   fun applyColorPalette(palette: ColorPalettePreset) {
+    val targetCardStyle = when {
+      palette.backgroundAlpha <= 0.02f -> CardStyle.TRANSPARENT
+      palette.backgroundAlpha < 0.78f -> CardStyle.FROSTED
+      else -> CardStyle.SOLID
+    }
+    val targetFill = when (targetCardStyle) {
+      CardStyle.TRANSPARENT -> BackgroundFillMode.NONE
+      CardStyle.FROSTED -> BackgroundFillMode.GLASS
+      CardStyle.SOLID -> BackgroundFillMode.SOLID
+    }
     updateConfig(
       _uiState.value.activeConfig.copy(
+        backgroundFillMode = targetFill,
+        cardStyle = targetCardStyle,
         backgroundColor = palette.backgroundColor,
         accentColor = palette.accentColor,
         foregroundColor = palette.foregroundColor,
         secondaryTextColor = palette.secondaryTextColor,
         backgroundAlpha = palette.backgroundAlpha,
+        hourColor = null,
+        minuteColor = null,
+        secondsColor = null,
+        showBorder = targetCardStyle != CardStyle.TRANSPARENT,
       ),
     )
+  }
+
+  fun setTimeTravel(enabled: Boolean, minutesOfDay: Int? = null) {
+    _uiState.update {
+      it.copy(
+        timeTravelEnabled = enabled,
+        timeTravelMinutes = minutesOfDay?.coerceIn(0, 1439) ?: it.timeTravelMinutes,
+      )
+    }
+  }
+
+  fun openBuilder() {
+    _uiState.update { it.copy(showBuilderSheet = true) }
+  }
+
+  fun closeBuilder() {
+    _uiState.update { it.copy(showBuilderSheet = false) }
+  }
+
+  fun applyCustomBuilderConfig(builtConfig: WidgetConfig, saveAsPresetName: String? = null) {
+    val finalCfg = builtConfig.copy(styleId = ClockStyleId.CUSTOM_COMPOSER)
+    _uiState.update { it.copy(showBuilderSheet = false, editingAppWidgetId = null) }
+    updateConfig(finalCfg)
+    if (!saveAsPresetName.isNullOrBlank()) {
+      viewModelScope.launch {
+        repo.savePreset(saveAsPresetName, finalCfg)
+        _uiState.update { it.copy(statusMessage = "Saved \"$saveAsPresetName\"") }
+      }
+    }
   }
 
   fun updateConfig(newConfig: WidgetConfig) {
@@ -229,7 +489,17 @@ class ClockStudioViewModel(application: Application) : AndroidViewModel(applicat
 
   fun loadPresetIntoStudio(preset: SavedClockPreset) {
     _uiState.update { it.copy(editingAppWidgetId = null, activeConfig = preset.config) }
-    viewModelScope.launch { repo.saveActiveDraft(preset.config) }
+    viewModelScope.launch {
+      repo.saveActiveDraft(preset.config)
+      repo.recordRecentStyle(preset.config.styleId)
+    }
+  }
+
+  fun duplicateSavedPreset(preset: SavedClockPreset) {
+    viewModelScope.launch {
+      repo.duplicatePreset(preset)
+      _uiState.update { it.copy(statusMessage = "Duplicated \"${preset.name}\"") }
+    }
   }
 
   fun startEditingHomeWidget(widget: ActiveHomeWidget) {
@@ -246,12 +516,14 @@ class ClockStudioViewModel(application: Application) : AndroidViewModel(applicat
   }
 
   fun setWallpaper(option: WallpaperOption, customUri: String? = null) {
+    val resolvedCustomUri = customUri ?: _uiState.value.customWallpaperUri
     _uiState.update {
       it.copy(
         previewWallpaper = option,
-        customWallpaperUri = customUri ?: it.customWallpaperUri,
+        customWallpaperUri = resolvedCustomUri,
       )
     }
+    extractWallpaperSuggestions(option, resolvedCustomUri)
   }
 
   fun setPreviewSizePreset(preset: WidgetSizePreset) {

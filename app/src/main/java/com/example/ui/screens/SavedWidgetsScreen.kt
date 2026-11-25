@@ -1,5 +1,6 @@
 package com.example.ui.screens
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -16,28 +17,41 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.AddToHomeScreen
+import androidx.compose.material.icons.rounded.AutoAwesome
+import androidx.compose.material.icons.rounded.BrightnessAuto
+import androidx.compose.material.icons.rounded.ContentCopy
+import androidx.compose.material.icons.rounded.DarkMode
 import androidx.compose.material.icons.rounded.DeleteOutline
+import androidx.compose.material.icons.rounded.LightMode
+import androidx.compose.material.icons.rounded.PlayCircleOutline
 import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material.icons.rounded.Tune
 import androidx.compose.material.icons.rounded.Widgets
 import androidx.compose.material3.Button
 import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.example.R
 import com.example.model.ActiveHomeWidget
+import com.example.model.AppThemeMode
 import com.example.model.SavedClockPreset
 import com.example.ui.components.LiveClockCanvas
 import com.example.ui.components.rememberLiveClockMillis
@@ -49,8 +63,12 @@ fun SavedWidgetsScreen(
   onRefreshActiveWidgets: () -> Unit,
   onEditActiveWidget: (ActiveHomeWidget) -> Unit,
   onLoadPreset: (SavedClockPreset) -> Unit,
+  onDuplicatePreset: (SavedClockPreset) -> Unit = {},
   onDeletePreset: (String) -> Unit,
+  onOpenBuilder: () -> Unit = {},
   onOpenLibrary: () -> Unit,
+  onSelectThemeMode: (AppThemeMode) -> Unit = {},
+  onReplayOnboarding: () -> Unit = {},
   modifier: Modifier = Modifier,
 ) {
   val liveTimeMillis = rememberLiveClockMillis(1000L)
@@ -66,23 +84,101 @@ fun SavedWidgetsScreen(
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically,
       ) {
-        Column {
-          Text(
-            text = "My Widgets",
-            style = MaterialTheme.typography.displaySmall,
-            color = MaterialTheme.colorScheme.onBackground,
+        Row(
+          verticalAlignment = Alignment.CenterVertically,
+          horizontalArrangement = Arrangement.spacedBy(12.dp),
+          modifier = Modifier.weight(1f),
+        ) {
+          Image(
+            painter = painterResource(id = R.drawable.chrono_app_logo_1795569986651),
+            contentDescription = "ChronoCraft logo",
+            contentScale = ContentScale.Crop,
+            modifier =
+              Modifier
+                .size(44.dp)
+                .clip(CircleShape)
+                .border(1.5.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.5f), CircleShape),
           )
-          Text(
-            text = "Active home screen instances & saved custom styles",
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-          )
+          Column {
+            Text(
+              text = "My Widgets",
+              style = MaterialTheme.typography.displaySmall,
+              color = MaterialTheme.colorScheme.onBackground,
+            )
+            Text(
+              text = "Active instances, presets & app theme",
+              style = MaterialTheme.typography.bodyMedium,
+              color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+          }
         }
         IconButton(
           onClick = onRefreshActiveWidgets,
-          modifier = Modifier.testTag("refresh_active_widgets_btn"),
+          modifier = Modifier.size(48.dp).testTag("refresh_active_widgets_btn"),
         ) {
           Icon(Icons.Rounded.Refresh, contentDescription = "Refresh active home screen widgets")
+        }
+      }
+    }
+
+    item {
+      Surface(
+        shape = RoundedCornerShape(20.dp),
+        color = MaterialTheme.colorScheme.surface,
+        tonalElevation = 2.dp,
+        modifier =
+          Modifier
+            .fillMaxWidth()
+            .border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(20.dp)),
+      ) {
+        Column(
+          modifier = Modifier.padding(14.dp),
+          verticalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+          Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+          ) {
+            Text(
+              text = "APP APPEARANCE",
+              style = MaterialTheme.typography.labelMedium,
+              color = MaterialTheme.colorScheme.primary,
+            )
+            OutlinedButton(
+              onClick = onReplayOnboarding,
+              contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
+              modifier = Modifier.testTag("saved_replay_onboarding_btn"),
+            ) {
+              Icon(
+                imageVector = Icons.Rounded.PlayCircleOutline,
+                contentDescription = null,
+                modifier = Modifier.size(16.dp),
+              )
+              Spacer(modifier = Modifier.width(5.dp))
+              Text("App Tour")
+            }
+          }
+          Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+          ) {
+            listOf(
+              Triple(AppThemeMode.SYSTEM, "Auto", Icons.Rounded.BrightnessAuto),
+              Triple(AppThemeMode.LIGHT, "Light", Icons.Rounded.LightMode),
+              Triple(AppThemeMode.DARK, "Dark", Icons.Rounded.DarkMode),
+            ).forEach { (mode, label, icon) ->
+              FilterChip(
+                selected = uiState.appThemeMode == mode,
+                onClick = { onSelectThemeMode(mode) },
+                leadingIcon = {
+                  Icon(icon, contentDescription = null, modifier = Modifier.size(16.dp))
+                },
+                label = { Text(label, maxLines = 1) },
+                modifier = Modifier.weight(1f).testTag("saved_theme_${mode.name.lowercase()}"),
+              )
+            }
+          }
         }
       }
     }
@@ -193,11 +289,26 @@ fun SavedWidgetsScreen(
     // Section 2: Saved Custom Presets
     item {
       Spacer(modifier = Modifier.height(6.dp))
-      Text(
-        text = "SAVED PRESETS (${uiState.savedPresets.size})",
-        style = MaterialTheme.typography.labelMedium,
-        color = MaterialTheme.colorScheme.secondary,
-      )
+      Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically,
+      ) {
+        Text(
+          text = "SAVED PRESETS (${uiState.savedPresets.size})",
+          style = MaterialTheme.typography.labelMedium,
+          color = MaterialTheme.colorScheme.secondary,
+        )
+        OutlinedButton(
+          onClick = onOpenBuilder,
+          contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
+          modifier = Modifier.testTag("saved_create_custom_btn"),
+        ) {
+          Icon(Icons.Rounded.AutoAwesome, contentDescription = null, modifier = Modifier.size(16.dp))
+          Spacer(modifier = Modifier.width(5.dp))
+          Text("Create Custom")
+        }
+      }
     }
 
     if (uiState.savedPresets.isEmpty()) {
@@ -270,8 +381,18 @@ fun SavedWidgetsScreen(
                   Text("Open")
                 }
                 IconButton(
+                  onClick = { onDuplicatePreset(preset) },
+                  modifier = Modifier.size(48.dp).testTag("duplicate_preset_${preset.id}"),
+                ) {
+                  Icon(
+                    imageVector = Icons.Rounded.ContentCopy,
+                    contentDescription = "Duplicate preset ${preset.name}",
+                    tint = MaterialTheme.colorScheme.primary,
+                  )
+                }
+                IconButton(
                   onClick = { onDeletePreset(preset.id) },
-                  modifier = Modifier.testTag("delete_preset_${preset.id}"),
+                  modifier = Modifier.size(48.dp).testTag("delete_preset_${preset.id}"),
                 ) {
                   Icon(
                     imageVector = Icons.Rounded.DeleteOutline,

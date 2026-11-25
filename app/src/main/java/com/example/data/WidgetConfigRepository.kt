@@ -3,11 +3,14 @@ package com.example.data
 import android.content.Context
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
+import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
+import com.example.model.AppThemeMode
 import com.example.model.ClockPresets
 import com.example.model.ClockStyleId
+import com.example.model.LibraryLayoutMode
 import com.example.model.SavedClockPreset
 import com.example.model.WidgetConfig
 import com.squareup.moshi.Moshi
@@ -31,9 +34,85 @@ class WidgetConfigRepository(private val context: Context) {
   private val keyActiveDraft = stringPreferencesKey("active_studio_draft")
   private val keySavedPresets = stringPreferencesKey("saved_presets")
   private val keyPendingPinConfig = stringPreferencesKey("pending_pin_config")
+  private val keyFavoriteStyles = stringPreferencesKey("favorite_styles")
+  private val keyRecentStyles = stringPreferencesKey("recent_styles")
+  private val keyAppThemeMode = stringPreferencesKey("app_theme_mode")
+  private val keyLibraryLayoutMode = stringPreferencesKey("library_layout_mode")
+  private val keyOnboardingCompleted = booleanPreferencesKey("onboarding_completed")
 
   private fun widgetConfigKey(appWidgetId: Int) =
     stringPreferencesKey("widget_config_$appWidgetId")
+
+  val appThemeModeFlow: Flow<AppThemeMode> =
+    context.chronoDataStore.data.map { prefs ->
+      val raw = prefs[keyAppThemeMode]
+      raw?.let { runCatching { AppThemeMode.valueOf(it) }.getOrNull() } ?: AppThemeMode.SYSTEM
+    }
+
+  val libraryLayoutModeFlow: Flow<LibraryLayoutMode> =
+    context.chronoDataStore.data.map { prefs ->
+      val raw = prefs[keyLibraryLayoutMode]
+      raw?.let { runCatching { LibraryLayoutMode.valueOf(it) }.getOrNull() } ?: LibraryLayoutMode.STAGGERED
+    }
+
+  val onboardingCompletedFlow: Flow<Boolean> =
+    context.chronoDataStore.data.map { prefs ->
+      prefs[keyOnboardingCompleted] ?: false
+    }
+
+  suspend fun setAppThemeMode(mode: AppThemeMode) {
+    context.chronoDataStore.edit { prefs ->
+      prefs[keyAppThemeMode] = mode.name
+    }
+  }
+
+  suspend fun setLibraryLayoutMode(mode: LibraryLayoutMode) {
+    context.chronoDataStore.edit { prefs ->
+      prefs[keyLibraryLayoutMode] = mode.name
+    }
+  }
+
+  suspend fun setOnboardingCompleted(completed: Boolean) {
+    context.chronoDataStore.edit { prefs ->
+      prefs[keyOnboardingCompleted] = completed
+    }
+  }
+
+  val favoriteStylesFlow: Flow<Set<ClockStyleId>> =
+    context.chronoDataStore.data.map { prefs ->
+      val raw = prefs[keyFavoriteStyles].orEmpty()
+      if (raw.isBlank()) {
+        setOf(ClockStyleId.WEIGHT_STACK_FLOAT, ClockStyleId.NEON_FRAME_GLOW, ClockStyleId.SOLAR_ORBIT_PLANETS)
+      } else {
+        raw.split(",").mapNotNull { name -> runCatching { ClockStyleId.valueOf(name) }.getOrNull() }.toSet()
+      }
+    }
+
+  val recentStylesFlow: Flow<List<ClockStyleId>> =
+    context.chronoDataStore.data.map { prefs ->
+      val raw = prefs[keyRecentStyles].orEmpty()
+      if (raw.isBlank()) {
+        emptyList()
+      } else {
+        raw.split(",").mapNotNull { name -> runCatching { ClockStyleId.valueOf(name) }.getOrNull() }
+      }
+    }
+
+  suspend fun toggleFavoriteStyle(styleId: ClockStyleId) {
+    val current = favoriteStylesFlow.first()
+    val updated = if (styleId in current) current - styleId else current + styleId
+    context.chronoDataStore.edit { prefs ->
+      prefs[keyFavoriteStyles] = updated.joinToString(",") { it.name }
+    }
+  }
+
+  suspend fun recordRecentStyle(styleId: ClockStyleId) {
+    val current = recentStylesFlow.first()
+    val updated = (listOf(styleId) + current.filterNot { it == styleId }).take(8)
+    context.chronoDataStore.edit { prefs ->
+      prefs[keyRecentStyles] = updated.joinToString(",") { it.name }
+    }
+  }
 
   val activeDraftFlow: Flow<WidgetConfig> =
     context.chronoDataStore.data.map { prefs ->
@@ -110,6 +189,10 @@ class WidgetConfigRepository(private val context: Context) {
     context.chronoDataStore.edit { prefs ->
       prefs[keySavedPresets] = presetListAdapter.toJson(updated)
     }
+  }
+
+  suspend fun duplicatePreset(preset: SavedClockPreset) {
+    savePreset("${preset.name} Copy", preset.config)
   }
 
   suspend fun deletePreset(presetId: String) {

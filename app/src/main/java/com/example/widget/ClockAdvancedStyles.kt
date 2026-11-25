@@ -11,6 +11,7 @@ import android.graphics.RectF
 import android.graphics.Shader
 import android.graphics.Typeface
 import androidx.core.graphics.ColorUtils
+import com.example.model.CardStyle
 import com.example.model.WeatherSnapshot
 import com.example.model.WidgetConfig
 import java.text.SimpleDateFormat
@@ -289,10 +290,13 @@ internal object ClockAdvancedStyles {
     baseColor: Int,
     accentColor: Int,
     depth: Float,
+    bgAlpha: Float = 0.94f,
   ) {
-    if (depth > 0.05f) {
+    if (bgAlpha <= 0.02f) return
+    val alphaInt = (bgAlpha * 255).roundToInt().coerceIn(0, 255)
+    if (depth > 0.05f && bgAlpha > 0.35f) {
       val shadowPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = Color.argb((75 * depth).roundToInt(), 0, 0, 0)
+        color = Color.argb((75 * depth * bgAlpha).roundToInt(), 0, 0, 0)
       }
       canvas.drawRoundRect(
         RectF(rect.left + 3f * depth, rect.top + 5f * depth, rect.right + 3f * depth, rect.bottom + 6f * depth),
@@ -302,8 +306,8 @@ internal object ClockAdvancedStyles {
       )
     }
     val tilePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-      val topC = ColorUtils.blendARGB(baseColor, Color.WHITE, 0.07f * depth)
-      val botC = ColorUtils.blendARGB(baseColor, accentColor, 0.05f)
+      val topC = ColorUtils.setAlphaComponent(ColorUtils.blendARGB(baseColor, Color.WHITE, 0.07f * depth), alphaInt)
+      val botC = ColorUtils.setAlphaComponent(ColorUtils.blendARGB(baseColor, accentColor, 0.05f), alphaInt)
       shader = LinearGradient(rect.left, rect.top, rect.right, rect.bottom, topC, botC, Shader.TileMode.CLAMP)
     }
     canvas.drawRoundRect(rect, radius, radius, tilePaint)
@@ -338,6 +342,8 @@ internal object ClockAdvancedStyles {
     val isExpandedTall = h >= w * 0.78f
     val isCompactSquare = w < h * 1.35f && !isExpandedTall
 
+    val effectiveAlpha = if (config.cardStyle == CardStyle.TRANSPARENT) 0f else config.backgroundAlpha
+
     if (isStrip) {
       // 4x1 strip: Left Time tile | Middle Date tile | Right Weather tile
       val tW = w * 0.42f
@@ -346,9 +352,9 @@ internal object ClockAdvancedStyles {
       val dateTile = RectF(timeTile.right + gap, rect.top, timeTile.right + gap + dW, rect.bottom)
       val wTile = RectF(dateTile.right + gap, rect.top, rect.right, rect.bottom)
 
-      drawDepthTile(canvas, timeTile, r, config.backgroundColor, config.accentColor, config.depthIntensity)
-      drawDepthTile(canvas, dateTile, r, config.backgroundColor, config.accentColor, config.depthIntensity)
-      drawDepthTile(canvas, wTile, r, config.backgroundColor, config.accentColor, config.depthIntensity)
+      drawDepthTile(canvas, timeTile, r, config.backgroundColor, config.accentColor, config.depthIntensity, effectiveAlpha)
+      drawDepthTile(canvas, dateTile, r, config.backgroundColor, config.accentColor, config.depthIntensity, effectiveAlpha)
+      drawDepthTile(canvas, wTile, r, config.backgroundColor, config.accentColor, config.depthIntensity, effectiveAlpha)
 
       val tp = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         this.typeface = typeface
@@ -380,9 +386,9 @@ internal object ClockAdvancedStyles {
       val topRight = RectF(topLeft.right + gap, rect.top, rect.right, rect.top + topH)
       val calTile = RectF(rect.left, topLeft.bottom + gap, rect.right, rect.bottom)
 
-      drawDepthTile(canvas, topLeft, r, config.backgroundColor, config.accentColor, config.depthIntensity)
-      drawDepthTile(canvas, topRight, r, config.backgroundColor, config.accentColor, config.depthIntensity)
-      drawDepthTile(canvas, calTile, r, config.backgroundColor, config.accentColor, config.depthIntensity)
+      drawDepthTile(canvas, topLeft, r, config.backgroundColor, config.accentColor, config.depthIntensity, effectiveAlpha)
+      drawDepthTile(canvas, topRight, r, config.backgroundColor, config.accentColor, config.depthIntensity, effectiveAlpha)
+      drawDepthTile(canvas, calTile, r, config.backgroundColor, config.accentColor, config.depthIntensity, effectiveAlpha)
 
       // Time Tile
       val tp = Paint(Paint.ANTI_ALIAS_FLAG).apply {
@@ -433,9 +439,9 @@ internal object ClockAdvancedStyles {
       val topTile = RectF(rect.left, rect.top, rect.right, rect.top + h * 0.56f)
       val botLeft = RectF(rect.left, topTile.bottom + gap, rect.left + w * 0.52f - gap / 2f, rect.bottom)
       val botRight = RectF(botLeft.right + gap, topTile.bottom + gap, rect.right, rect.bottom)
-      drawDepthTile(canvas, topTile, r, config.backgroundColor, config.accentColor, config.depthIntensity)
-      drawDepthTile(canvas, botLeft, r, config.backgroundColor, config.accentColor, config.depthIntensity)
-      drawDepthTile(canvas, botRight, r, config.backgroundColor, config.accentColor, config.depthIntensity)
+      drawDepthTile(canvas, topTile, r, config.backgroundColor, config.accentColor, config.depthIntensity, effectiveAlpha)
+      drawDepthTile(canvas, botLeft, r, config.backgroundColor, config.accentColor, config.depthIntensity, effectiveAlpha)
+      drawDepthTile(canvas, botRight, r, config.backgroundColor, config.accentColor, config.depthIntensity, effectiveAlpha)
 
       val tp = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         this.typeface = typeface
@@ -464,9 +470,9 @@ internal object ClockAdvancedStyles {
       val topRight = RectF(leftTile.right + gap, rect.top, rect.right, rect.top + h * 0.42f)
       val botRight = RectF(leftTile.right + gap, topRight.bottom + gap, rect.right, rect.bottom)
 
-      drawDepthTile(canvas, leftTile, r, config.backgroundColor, config.accentColor, config.depthIntensity)
-      drawDepthTile(canvas, topRight, r, config.backgroundColor, config.accentColor, config.depthIntensity)
-      drawDepthTile(canvas, botRight, r, config.backgroundColor, config.accentColor, config.depthIntensity)
+      drawDepthTile(canvas, leftTile, r, config.backgroundColor, config.accentColor, config.depthIntensity, effectiveAlpha)
+      drawDepthTile(canvas, topRight, r, config.backgroundColor, config.accentColor, config.depthIntensity, effectiveAlpha)
+      drawDepthTile(canvas, botRight, r, config.backgroundColor, config.accentColor, config.depthIntensity, effectiveAlpha)
 
       val tp = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         this.typeface = typeface
@@ -528,18 +534,22 @@ internal object ClockAdvancedStyles {
     val h = rect.height()
     val minD = min(w, h)
 
-    // Ambient 3D radial depth glow
-    val glowPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-      shader = RadialGradient(
-        rect.right - w * 0.18f,
-        rect.top + h * 0.22f,
-        minD * 0.72f,
-        ColorUtils.setAlphaComponent(config.accentColor, (120 * config.depthIntensity).roundToInt()),
-        Color.TRANSPARENT,
-        Shader.TileMode.CLAMP,
-      )
+    val effectiveAlpha = if (config.cardStyle == CardStyle.TRANSPARENT) 0f else config.backgroundAlpha
+
+    if (effectiveAlpha > 0.02f) {
+      // Ambient 3D radial depth glow
+      val glowPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        shader = RadialGradient(
+          rect.right - w * 0.18f,
+          rect.top + h * 0.22f,
+          minD * 0.72f,
+          ColorUtils.setAlphaComponent(config.accentColor, (120 * config.depthIntensity).roundToInt()),
+          Color.TRANSPARENT,
+          Shader.TileMode.CLAMP,
+        )
+      }
+      canvas.drawCircle(rect.right - w * 0.18f, rect.top + h * 0.22f, minD * 0.72f, glowPaint)
     }
-    canvas.drawCircle(rect.right - w * 0.18f, rect.top + h * 0.22f, minD * 0.72f, glowPaint)
 
     val wide = w > h * 1.45f
     val tall = h >= w * 0.85f
@@ -583,7 +593,7 @@ internal object ClockAdvancedStyles {
       canvas.drawText(timeStr, rect.centerX(), rect.centerY() - (fm.ascent + fm.descent) / 2f, timePaint)
 
       val stripCard = RectF(rect.left, rect.bottom - h * 0.26f, rect.right, rect.bottom)
-      drawDepthTile(canvas, stripCard, minD * 0.08f, config.backgroundColor, config.accentColor, config.depthIntensity)
+      drawDepthTile(canvas, stripCard, minD * 0.08f, config.backgroundColor, config.accentColor, config.depthIntensity, effectiveAlpha)
       drawWeekStrip(
         canvas = canvas,
         rect = RectF(stripCard.left + 8f, stripCard.top + 4f, stripCard.right - 8f, stripCard.bottom - 4f),
@@ -605,7 +615,7 @@ internal object ClockAdvancedStyles {
       }
 
       val cardRect = RectF(rect.left + w * 0.60f, rect.top + 4f, rect.right - 2f, rect.bottom - 4f)
-      drawDepthTile(canvas, cardRect, minD * 0.14f, config.backgroundColor, config.accentColor, config.depthIntensity)
+      drawDepthTile(canvas, cardRect, minD * 0.14f, config.backgroundColor, config.accentColor, config.depthIntensity, effectiveAlpha)
       val iconR = (min(cardRect.width(), cardRect.height()) * 0.22f).coerceIn(10f, 24f)
       drawWeatherIcon(canvas, cardRect.centerX(), cardRect.top + cardRect.height() * 0.32f, iconR, weather.weatherCode, weather.isDay, config.accentColor, config.foregroundColor)
       val tP = Paint(Paint.ANTI_ALIAS_FLAG).apply {
@@ -649,9 +659,11 @@ internal object ClockAdvancedStyles {
       else -> 1
     }
 
+    val effectiveAlpha = if (config.cardStyle == CardStyle.TRANSPARENT) 0f else config.backgroundAlpha
+
     if (layers == 1) {
       val card = RectF(rect.left, rect.top, rect.right, rect.bottom)
-      drawDepthTile(canvas, card, r, config.backgroundColor, config.accentColor, config.depthIntensity)
+      drawDepthTile(canvas, card, r, config.backgroundColor, config.accentColor, config.depthIntensity, effectiveAlpha)
       val tp = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         this.typeface = typeface
         color = config.foregroundColor
@@ -673,7 +685,7 @@ internal object ClockAdvancedStyles {
     val gap = (minD * 0.045f).coerceIn(6f, 12f)
     val layer1H = if (layers == 3) h * 0.42f else h * 0.60f
     val layer1 = RectF(rect.left, rect.top, rect.right, rect.top + layer1H)
-    drawDepthTile(canvas, layer1, r, config.backgroundColor, config.accentColor, config.depthIntensity)
+    drawDepthTile(canvas, layer1, r, config.backgroundColor, config.accentColor, config.depthIntensity, effectiveAlpha)
 
     val tp = Paint(Paint.ANTI_ALIAS_FLAG).apply {
       this.typeface = typeface
@@ -695,7 +707,7 @@ internal object ClockAdvancedStyles {
 
     if (layers == 2) {
       val layer2 = RectF(rect.left + w * 0.04f, layer1.bottom + gap, rect.right - w * 0.04f, rect.bottom)
-      drawDepthTile(canvas, layer2, r * 0.9f, ColorUtils.blendARGB(config.backgroundColor, config.accentColor, 0.10f), config.accentColor, config.depthIntensity)
+      drawDepthTile(canvas, layer2, r * 0.9f, ColorUtils.blendARGB(config.backgroundColor, config.accentColor, 0.10f), config.accentColor, config.depthIntensity, effectiveAlpha)
       val iconR = (layer2.height() * 0.30f).coerceIn(10f, 20f)
       drawWeatherIcon(canvas, layer2.left + iconR + 16f, layer2.centerY(), iconR, weather.weatherCode, weather.isDay, config.accentColor, config.foregroundColor)
       val wTextP = Paint(Paint.ANTI_ALIAS_FLAG).apply {
@@ -713,8 +725,8 @@ internal object ClockAdvancedStyles {
       val layer2 = RectF(rect.left + w * 0.025f, layer1.bottom + gap, rect.right - w * 0.025f, layer1.bottom + gap + layer2H)
       val layer3 = RectF(rect.left + w * 0.05f, layer2.bottom + gap, rect.right - w * 0.05f, rect.bottom)
 
-      drawDepthTile(canvas, layer2, r * 0.85f, ColorUtils.blendARGB(config.backgroundColor, config.accentColor, 0.12f), config.accentColor, config.depthIntensity)
-      drawDepthTile(canvas, layer3, r * 0.85f, config.backgroundColor, config.accentColor, config.depthIntensity)
+      drawDepthTile(canvas, layer2, r * 0.85f, ColorUtils.blendARGB(config.backgroundColor, config.accentColor, 0.12f), config.accentColor, config.depthIntensity, effectiveAlpha)
+      drawDepthTile(canvas, layer3, r * 0.85f, config.backgroundColor, config.accentColor, config.depthIntensity, effectiveAlpha)
 
       val iconR = (layer2.height() * 0.30f).coerceIn(10f, 20f)
       drawWeatherIcon(canvas, layer2.left + iconR + 14f, layer2.centerY(), iconR, weather.weatherCode, weather.isDay, config.accentColor, config.foregroundColor)
@@ -991,29 +1003,34 @@ internal object ClockAdvancedStyles {
     val well = RectF(rect.left + minD * 0.04f, rect.top + minD * 0.04f, rect.right - minD * 0.04f, rect.bottom - minD * 0.04f)
     val wellR = (minD * 0.14f).coerceIn(10f, 28f)
 
-    // Light top-left & dark bottom-right neumorphic bevels
-    val lightEdge = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-      style = Paint.Style.STROKE
-      strokeWidth = (minD * 0.022f).coerceIn(2f, 5f)
-      color = Color.argb((45 * config.depthIntensity).roundToInt(), 255, 255, 255)
+    if (config.cardStyle != CardStyle.TRANSPARENT && config.backgroundAlpha > 0.02f) {
+      // Light top-left & dark bottom-right neumorphic bevels
+      val lightEdge = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        style = Paint.Style.STROKE
+        strokeWidth = (minD * 0.022f).coerceIn(2f, 5f)
+        color = Color.argb((45 * config.depthIntensity).roundToInt(), 255, 255, 255)
+      }
+      val darkEdge = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        style = Paint.Style.STROKE
+        strokeWidth = lightEdge.strokeWidth
+        color = Color.argb((110 * config.depthIntensity).roundToInt(), 0, 0, 0)
+      }
+      val wellFill = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = ColorUtils.blendARGB(config.backgroundColor, Color.BLACK, 0.22f)
+      }
+      canvas.drawRoundRect(well, wellR, wellR, wellFill)
+      canvas.drawRoundRect(RectF(well.left + 2f, well.top + 2f, well.right, well.bottom), wellR, wellR, lightEdge)
+      canvas.drawRoundRect(RectF(well.left, well.top, well.right - 2f, well.bottom - 2f), wellR, wellR, darkEdge)
     }
-    val darkEdge = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-      style = Paint.Style.STROKE
-      strokeWidth = lightEdge.strokeWidth
-      color = Color.argb((110 * config.depthIntensity).roundToInt(), 0, 0, 0)
-    }
-    val wellFill = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-      color = ColorUtils.blendARGB(config.backgroundColor, Color.BLACK, 0.22f)
-    }
-    canvas.drawRoundRect(well, wellR, wellR, wellFill)
-    canvas.drawRoundRect(RectF(well.left + 2f, well.top + 2f, well.right, well.bottom), wellR, wellR, lightEdge)
-    canvas.drawRoundRect(RectF(well.left, well.top, well.right - 2f, well.bottom - 2f), wellR, wellR, darkEdge)
 
     val timeStr = "${fmtHour(cal, config.is24Hour)}:${fmtMin(cal)}"
     val tp = Paint(Paint.ANTI_ALIAS_FLAG).apply {
       this.typeface = typeface
       color = config.foregroundColor
       textAlign = Paint.Align.CENTER
+      if (config.cardStyle == CardStyle.TRANSPARENT || config.backgroundAlpha <= 0.05f) {
+        setShadowLayer(10f, 0f, 3f, Color.argb(170, 0, 0, 0))
+      }
     }
     tp.textSize = fitText(tp, timeStr, well.width() * 0.84f, well.height() * 0.50f, minD * 0.46f * config.fontScale)
     val fm = tp.fontMetrics

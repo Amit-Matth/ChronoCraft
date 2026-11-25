@@ -17,4 +17,5 @@
     <string name="cta_pin_widget">Add to Home Screen</string>
     <string name="cta_save_preset">Save Preset</string>
     <string name="cta_apply_widget">Apply to Widget</string>
+    <string name="dream_service_label">ChronoCraft Ambient AOD</string>
 </resources>

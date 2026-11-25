@@ -22,10 +22,12 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import com.example.data.WidgetConfigRepository
+import com.example.model.CardStyle
 import com.example.model.ClockPresets
 import com.example.model.ClockStyleId
 import com.example.model.WallpaperOption
 import com.example.model.WeatherSnapshot
+import com.example.model.WidgetBackdropId
 import com.example.model.WidgetSizePreset
 import com.example.ui.screens.StudioScreen
 import com.example.ui.theme.ChronoCraftTheme
@@ -62,11 +64,12 @@ class WidgetConfigureActivity : ComponentActivity() {
       ChronoCraftTheme {
         val scope = rememberCoroutineScope()
         val snackbarHostState = remember { SnackbarHostState() }
-        var config by remember { mutableStateOf(ClockPresets.defaultConfigForStyle(ClockStyleId.BENTO_CALENDAR)) }
+        var config by remember { mutableStateOf(ClockPresets.defaultConfigForStyle(ClockStyleId.WEIGHT_STACK_FLOAT)) }
         var weather by remember { mutableStateOf(WeatherSnapshot()) }
         var isLoadingWeather by remember { mutableStateOf(false) }
         var cityResults by remember { mutableStateOf<List<GeocodingPlace>>(emptyList()) }
         var tab by remember { mutableStateOf(StudioTab.STYLE) }
+        var displayMode by remember { mutableStateOf(com.example.model.DisplayMode.HOME_SCREEN) }
         var wallpaper by remember { mutableStateOf(WallpaperOption.AURORA) }
         var sizePreset by remember { mutableStateOf(WidgetSizePreset.CLASSIC_4X2) }
 
@@ -79,6 +82,7 @@ class WidgetConfigureActivity : ComponentActivity() {
           ClockStudioUiState(
             activeConfig = config,
             activeStudioTab = tab,
+            activeDisplayMode = displayMode,
             editingAppWidgetId = appWidgetId,
             previewWallpaper = wallpaper,
             previewSizePreset = sizePreset,
@@ -97,6 +101,7 @@ class WidgetConfigureActivity : ComponentActivity() {
             StudioScreen(
               uiState = uiState,
               onSelectTab = { tab = it },
+              onSelectDisplayMode = { displayMode = it },
               onSwitchStyle = { style, keepColors ->
                 config = if (keepColors) {
                   config.copy(styleId = style, fontId = style.defaultFont)
@@ -105,14 +110,61 @@ class WidgetConfigureActivity : ComponentActivity() {
                 }
               },
               onUpdateConfig = { config = it },
+              onSelectCardStyle = { cardStyle ->
+                config = when (displayMode) {
+                  com.example.model.DisplayMode.HOME_SCREEN -> {
+                    val (alpha, border) = when (cardStyle) {
+                      CardStyle.TRANSPARENT -> 0.0f to false
+                      CardStyle.FROSTED -> 0.44f to true
+                      CardStyle.SOLID -> 0.94f to true
+                    }
+                    config.copy(
+                      cardStyle = cardStyle,
+                      backdropId = if (cardStyle == CardStyle.TRANSPARENT) WidgetBackdropId.NONE else config.backdropId,
+                      backgroundAlpha = alpha,
+                      showBorder = border,
+                    )
+                  }
+                  com.example.model.DisplayMode.LOCK_SCREEN -> {
+                    val alpha = when (cardStyle) {
+                      CardStyle.TRANSPARENT -> 0.0f
+                      CardStyle.FROSTED -> 0.28f
+                      CardStyle.SOLID -> 0.86f
+                    }
+                    config.copy(
+                      lockCardStyle = cardStyle,
+                      lockBackdropId = if (cardStyle == CardStyle.TRANSPARENT) WidgetBackdropId.NONE else config.lockBackdropId,
+                      lockBackgroundAlpha = alpha,
+                    )
+                  }
+                  com.example.model.DisplayMode.AOD -> {
+                    val alpha = when (cardStyle) {
+                      CardStyle.TRANSPARENT -> 0.0f
+                      CardStyle.FROSTED -> 0.16f
+                      CardStyle.SOLID -> 0.26f
+                    }
+                    config.copy(
+                      aodCardStyle = cardStyle,
+                      aodBackgroundAlpha = alpha,
+                    )
+                  }
+                }
+              },
               onApplyPalette = { palette ->
+                val targetCardStyle = when {
+                  palette.backgroundAlpha <= 0.02f -> CardStyle.TRANSPARENT
+                  palette.backgroundAlpha < 0.78f -> CardStyle.FROSTED
+                  else -> CardStyle.SOLID
+                }
                 config =
                   config.copy(
+                    cardStyle = targetCardStyle,
                     backgroundColor = palette.backgroundColor,
                     accentColor = palette.accentColor,
                     foregroundColor = palette.foregroundColor,
                     secondaryTextColor = palette.secondaryTextColor,
                     backgroundAlpha = palette.backgroundAlpha,
+                    showBorder = targetCardStyle != CardStyle.TRANSPARENT,
                   )
               },
               onSelectPreviewSize = { sizePreset = it },

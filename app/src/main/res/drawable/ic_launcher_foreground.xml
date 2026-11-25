@@ -3,6 +3,6 @@
     <item
         android:width="66dp"
         android:height="66dp"
-        android:drawable="@drawable/chrono_craft_icon_1795495861994"
+        android:drawable="@drawable/chrono_app_logo_1795569986651"
         android:gravity="center" />
 </layer-list>

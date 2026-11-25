@@ -8,6 +8,7 @@ import androidx.compose.material3.dynamicDarkColorScheme
 import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 
 private val ChronoDarkColorScheme =
@@ -21,6 +22,7 @@ private val ChronoDarkColorScheme =
     secondaryContainer = AmberContainerDark,
     onSecondaryContainer = TextPrimaryDark,
     tertiary = RosePulse,
+    onTertiary = Color.White,
     background = ObsidianBg,
     onBackground = TextPrimaryDark,
     surface = ObsidianSurface,
@@ -28,6 +30,7 @@ private val ChronoDarkColorScheme =
     surfaceVariant = ObsidianSurfaceElevated,
     onSurfaceVariant = TextSecondaryDark,
     outline = ObsidianOutline,
+    outlineVariant = ObsidianOutline.copy(alpha = 0.55f),
   )
 
 private val ChronoLightColorScheme =
@@ -41,6 +44,7 @@ private val ChronoLightColorScheme =
     secondaryContainer = AmberContainerLight,
     onSecondaryContainer = TextPrimaryLight,
     tertiary = RosePulse,
+    onTertiary = Color.White,
     background = PearlBg,
     onBackground = TextPrimaryLight,
     surface = PearlSurface,
@@ -48,6 +52,7 @@ private val ChronoLightColorScheme =
     surfaceVariant = PearlSurfaceVariant,
     onSurfaceVariant = TextSecondaryLight,
     outline = PearlOutline,
+    outlineVariant = PearlOutline.copy(alpha = 0.65f),
   )
 
 @Composable

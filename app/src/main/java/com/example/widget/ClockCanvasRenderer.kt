@@ -2,6 +2,7 @@ package com.example.widget
 
 import android.content.Context
 import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.LinearGradient
@@ -11,6 +12,7 @@ import android.graphics.Rect
 import android.graphics.RectF
 import android.graphics.Shader
 import android.graphics.Typeface
+import android.net.Uri
 import android.text.Layout
 import android.text.SpannableStringBuilder
 import android.text.Spanned
@@ -19,13 +21,18 @@ import android.text.TextPaint
 import android.text.style.ForegroundColorSpan
 import androidx.core.content.res.ResourcesCompat
 import androidx.core.graphics.ColorUtils
+import com.example.model.BackgroundFillMode
+import com.example.model.CardStyle
 import com.example.model.ClockFontId
 import com.example.model.ClockStyleId
+import com.example.model.DisplayMode
 import com.example.model.WeatherSnapshot
+import com.example.model.WidgetBackdropId
 import com.example.model.WidgetConfig
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Locale
+import java.util.TimeZone
 import java.util.concurrent.ConcurrentHashMap
 import kotlin.math.cos
 import kotlin.math.max
@@ -36,12 +43,23 @@ import kotlin.math.sin
 object ClockCanvasRenderer {
 
   private val typefaceCache = ConcurrentHashMap<ClockFontId, Typeface>()
+  private val photoUriCache = ConcurrentHashMap<String, Bitmap>()
 
   private fun getTypeface(context: Context, fontId: ClockFontId): Typeface {
     return typefaceCache.getOrPut(fontId) {
       runCatching { ResourcesCompat.getFont(context, fontId.fontRes) }.getOrNull()
         ?: Typeface.DEFAULT_BOLD
     }
+  }
+
+  private fun loadCustomPhoto(context: Context, uriStr: String): Bitmap? {
+    photoUriCache[uriStr]?.let { if (!it.isRecycled) return it }
+    return runCatching {
+      val opts = BitmapFactory.Options().apply { inSampleSize = 2 }
+      context.contentResolver.openInputStream(Uri.parse(uriStr))?.use { stream ->
+        BitmapFactory.decodeStream(stream, null, opts)?.also { photoUriCache[uriStr] = it }
+      }
+    }.getOrNull()
   }
 
   /**
@@ -77,11 +95,12 @@ object ClockCanvasRenderer {
     timeMillis: Long = System.currentTimeMillis(),
     weather: WeatherSnapshot = WeatherSnapshot(),
     maxBytes: Int = 2_200_000,
+    displayMode: DisplayMode = DisplayMode.HOME_SCREEN,
   ): Bitmap {
     val (wPx, hPx) = computeSafeBitmapSize(widthDp, heightDp, density, maxBytes)
     val bitmap = Bitmap.createBitmap(wPx, hPx, Bitmap.Config.ARGB_8888)
     val canvas = Canvas(bitmap)
-    drawClock(context, canvas, wPx.toFloat(), hPx.toFloat(), config, timeMillis, weather)
+    drawClock(context, canvas, wPx.toFloat(), hPx.toFloat(), config, timeMillis, weather, displayMode, 0f)
     return bitmap
   }
 
@@ -93,41 +112,161 @@ object ClockCanvasRenderer {
     config: WidgetConfig,
     timeMillis: Long = System.currentTimeMillis(),
     weather: WeatherSnapshot = WeatherSnapshot(),
+    displayMode: DisplayMode = DisplayMode.HOME_SCREEN,
+    animPhase: Float = 0f,
   ) {
-    val cal = Calendar.getInstance().apply { timeInMillis = timeMillis }
-    val typeface = getTypeface(context, config.fontId)
+    val tz = config.timeZoneId?.let { runCatching { TimeZone.getTimeZone(it) }.getOrNull() } ?: TimeZone.getDefault()
+    val cal = Calendar.getInstance(tz).apply { timeInMillis = timeMillis }
+    val moodConfig = if (displayMode != DisplayMode.AOD) {
+      ClockAnimationEffects.applyTimeBasedMood(config, cal)
+    } else {
+      config
+    }
+    val resolvedConfig = ClockAdaptiveDisplayRenderer.resolveConfigForMode(moodConfig, displayMode)
+    val typeface = getTypeface(context, resolvedConfig.fontId)
     val minDim = min(width, height)
-    val cornerPx = ((config.cornerRadiusDp / 160f) * minDim * 1.4f).coerceIn(0f, minDim * 0.48f)
+    val cornerPx = ((resolvedConfig.cornerRadiusDp / 160f) * minDim * 1.4f).coerceIn(0f, minDim * 0.48f)
+    val fillMode = resolvedConfig.effectiveFillMode(displayMode)
 
-    // Draw outer card container (Bento/Stack styles manage their own multi-tile depth cards)
-    if (config.styleId != ClockStyleId.BENTO_CALENDAR && config.styleId != ClockStyleId.EXPANDABLE_STACK) {
-      drawCardBase(canvas, width, height, cornerPx, config)
+    // Draw background strictly according to user's chosen BackgroundFillMode; NONE leaves zero container artifacts
+    when (fillMode) {
+      BackgroundFillMode.NONE -> Unit
+      BackgroundFillMode.ARTWORK -> {
+        if (resolvedConfig.backdropId != WidgetBackdropId.NONE) {
+          ClockArtStyles.drawRoundedBackdropArtwork(context, canvas, width, height, cornerPx, resolvedConfig.backdropId, resolvedConfig)
+        } else {
+          drawCardBase(canvas, width, height, cornerPx, resolvedConfig, fillMode)
+        }
+      }
+      BackgroundFillMode.PHOTO -> {
+        val uri = resolvedConfig.customPhotoUri
+        val photoBmp = if (!uri.isNullOrBlank()) loadCustomPhoto(context, uri) else null
+        if (photoBmp != null) {
+          drawPhotoBackdrop(canvas, width, height, cornerPx, photoBmp, resolvedConfig)
+        } else {
+          drawCardBase(canvas, width, height, cornerPx, resolvedConfig, BackgroundFillMode.GRADIENT)
+        }
+      }
+      BackgroundFillMode.SOLID, BackgroundFillMode.GRADIENT, BackgroundFillMode.GLASS -> {
+        if (displayMode != DisplayMode.HOME_SCREEN ||
+          (resolvedConfig.styleId != ClockStyleId.BENTO_CALENDAR && resolvedConfig.styleId != ClockStyleId.EXPANDABLE_STACK)
+        ) {
+          drawCardBase(canvas, width, height, cornerPx, resolvedConfig, fillMode)
+        }
+      }
     }
 
-    val pad = (minDim * 0.08f).coerceAtLeast(10f)
+    // Battery-conscious animation & decorative effects layer (always off on AOD)
+    ClockAnimationEffects.drawAnimationLayer(canvas, width, height, cornerPx, resolvedConfig, displayMode, animPhase, cal)
+
+    // Tight balanced padding when transparent/no background; standard card padding otherwise
+    val pad = if (fillMode == BackgroundFillMode.NONE) (minDim * 0.04f).coerceAtLeast(4f) else (minDim * 0.08f).coerceAtLeast(10f)
     val innerRect = RectF(pad, pad, width - pad, height - pad)
 
-    when (config.styleId) {
-      ClockStyleId.BENTO_CALENDAR -> ClockAdvancedStyles.drawBentoCalendar(canvas, innerRect, config, typeface, cal, weather)
-      ClockStyleId.DEPTH_GLASS_WEATHER -> ClockAdvancedStyles.drawDepthGlassWeather(canvas, innerRect, config, typeface, cal, weather)
-      ClockStyleId.EXPANDABLE_STACK -> ClockAdvancedStyles.drawExpandableStack(canvas, innerRect, config, typeface, cal, weather)
-      ClockStyleId.WORLD_AGENDA_PRO -> ClockAdvancedStyles.drawWorldAgendaPro(canvas, innerRect, config, typeface, cal, weather)
-      ClockStyleId.CHRONO_3D_DEPTH -> ClockAdvancedStyles.drawChrono3dDepth(canvas, innerRect, config, typeface, cal, weather)
-      ClockStyleId.NEUMORPH_SCULPT -> ClockAdvancedStyles.drawNeumorphSculpt(canvas, innerRect, config, typeface, cal, weather)
-      ClockStyleId.CYBER_HUD -> drawCyberHud(canvas, innerRect, config, typeface, cal)
-      ClockStyleId.RETRO_FLIP -> drawRetroFlip(canvas, innerRect, config, typeface, cal)
-      ClockStyleId.GLASS_PILL -> drawGlassPill(canvas, innerRect, config, typeface, cal)
-      ClockStyleId.BRUTALIST_POSTER -> drawBrutalistPoster(canvas, width, height, cornerPx, innerRect, config, typeface, cal)
-      ClockStyleId.TERMINAL_MONO -> drawTerminalMono(canvas, innerRect, config, typeface, cal)
-      ClockStyleId.EDITORIAL_SERIF -> drawEditorialSerif(canvas, innerRect, config, typeface, cal)
+    if (displayMode == DisplayMode.AOD) {
+      ClockAdaptiveDisplayRenderer.drawAodVariant(
+        canvas = canvas,
+        rect = innerRect,
+        config = resolvedConfig,
+        typeface = typeface,
+        cal = cal,
+        weather = weather,
+        batteryPercent = ClockArtStyles.getBatteryPercent(context),
+      )
+      return
+    }
+
+    if (displayMode == DisplayMode.LOCK_SCREEN &&
+      ClockAdaptiveDisplayRenderer.drawLockScreenTransformedIfApplicable(canvas, innerRect, resolvedConfig, typeface, cal, weather)
+    ) {
+      return
+    }
+
+    when (resolvedConfig.styleId) {
+      ClockStyleId.NEON_FRAME_GLOW -> ClockArtStyles.drawNeonFrameGlow(canvas, width, height, innerRect, resolvedConfig, typeface, cal, weather)
+      ClockStyleId.CIRCULAR_BATTERY_RING -> ClockArtStyles.drawCircularBatteryRing(canvas, innerRect, resolvedConfig, typeface, cal, weather, ClockArtStyles.getBatteryPercent(context))
+      ClockStyleId.HANDWRITTEN_SCRIPT -> ClockArtStyles.drawHandwrittenScript(canvas, innerRect, resolvedConfig, typeface, cal, weather)
+      ClockStyleId.PIXEL_SPACE_RETRO -> ClockArtStyles.drawPixelSpaceRetro(canvas, innerRect, resolvedConfig, typeface, cal, weather)
+      ClockStyleId.SUNSET_SCENIC_ART -> ClockArtStyles.drawSunsetScenicArt(canvas, innerRect, resolvedConfig, typeface, cal, weather)
+      ClockStyleId.DREAMY_NIGHT_ART -> ClockArtStyles.drawDreamyNightArt(canvas, innerRect, resolvedConfig, typeface, cal, weather)
+      ClockStyleId.KAWAII_KITTY_PEEK -> ClockArtStyles.drawKawaiiKittyPeek(canvas, innerRect, resolvedConfig, typeface, cal, weather)
+      ClockStyleId.PLANET_GLOW_ART -> ClockArtStyles.drawPlanetGlowArt(canvas, innerRect, resolvedConfig, typeface, cal, weather)
+      ClockStyleId.LIQUID_GLASS_PRISM -> ClockCreativeStyles.drawLiquidGlassPrism(canvas, innerRect, resolvedConfig, typeface, cal, weather, animPhase)
+      ClockStyleId.AURORA_RIBBON_FLOW -> ClockCreativeStyles.drawAuroraRibbonFlow(canvas, innerRect, resolvedConfig, typeface, cal, weather, animPhase)
+      ClockStyleId.SOLAR_ORBIT_PLANETS -> ClockCreativeStyles.drawSolarOrbitPlanets(canvas, innerRect, resolvedConfig, typeface, cal, weather, animPhase)
+      ClockStyleId.STARFIELD_CONSTELLATION -> ClockCreativeStyles.drawStarfieldConstellation(canvas, innerRect, resolvedConfig, typeface, cal, weather, animPhase)
+      ClockStyleId.DOODLE_SKETCH_NOTE -> ClockCreativeStyles.drawDoodleSketchNote(canvas, innerRect, resolvedConfig, typeface, cal, weather)
+      ClockStyleId.CLOUD_DREAMER -> ClockCreativeStyles.drawCloudDreamer(canvas, innerRect, resolvedConfig, typeface, cal, weather, animPhase)
+      ClockStyleId.NATURE_BOTANICAL -> ClockCreativeStyles.drawNatureBotanical(canvas, innerRect, resolvedConfig, typeface, cal, weather)
+      ClockStyleId.LIQUID_CHROME_WAVE -> ClockCreativeStyles.drawLiquidChromeWave(canvas, innerRect, resolvedConfig, typeface, cal, weather, animPhase)
+      ClockStyleId.COUNTDOWN_PROGRESS -> ClockCreativeStyles.drawCountdownProgress(canvas, innerRect, resolvedConfig, typeface, cal, weather)
+      ClockStyleId.EXPERIMENTAL_KINETIC -> ClockCreativeStyles.drawExperimentalKinetic(canvas, innerRect, resolvedConfig, typeface, cal, weather, animPhase)
+      ClockStyleId.MOOD_DAYLIGHT -> ClockCreativeStyles.drawMoodDaylight(canvas, innerRect, resolvedConfig, typeface, cal, weather)
+      ClockStyleId.CUSTOM_COMPOSER -> ClockCreativeStyles.drawCustomComposer(canvas, innerRect, resolvedConfig, typeface, cal, weather, animPhase)
+      ClockStyleId.WEIGHT_STACK_FLOAT -> ClockFloatingStyles.drawWeightStackFloat(canvas, innerRect, resolvedConfig, typeface, cal, weather)
+      ClockStyleId.NOTHING_DOT_FLOAT -> ClockFloatingStyles.drawNothingDotFloat(canvas, innerRect, resolvedConfig, typeface, cal, weather)
+      ClockStyleId.HAUTE_DIDONE_FLOAT -> ClockFloatingStyles.drawHauteDidoneFloat(canvas, innerRect, resolvedConfig, typeface, cal, weather)
+      ClockStyleId.HYPER_PILL_FLOAT -> ClockFloatingStyles.drawHyperPillFloat(canvas, innerRect, resolvedConfig, typeface, cal, weather)
+      ClockStyleId.FLOATING_ANALOG_PURE -> ClockFloatingStyles.drawFloatingAnalogPure(canvas, innerRect, resolvedConfig, typeface, cal, weather)
+      ClockStyleId.VERTICAL_SPINE_FLOAT -> ClockFloatingStyles.drawVerticalSpineFloat(canvas, innerRect, resolvedConfig, typeface, cal, weather)
+      ClockStyleId.BENTO_CALENDAR -> ClockAdvancedStyles.drawBentoCalendar(canvas, innerRect, resolvedConfig, typeface, cal, weather)
+      ClockStyleId.DEPTH_GLASS_WEATHER -> ClockAdvancedStyles.drawDepthGlassWeather(canvas, innerRect, resolvedConfig, typeface, cal, weather)
+      ClockStyleId.EXPANDABLE_STACK -> ClockAdvancedStyles.drawExpandableStack(canvas, innerRect, resolvedConfig, typeface, cal, weather)
+      ClockStyleId.WORLD_AGENDA_PRO -> ClockAdvancedStyles.drawWorldAgendaPro(canvas, innerRect, resolvedConfig, typeface, cal, weather)
+      ClockStyleId.CHRONO_3D_DEPTH -> ClockAdvancedStyles.drawChrono3dDepth(canvas, innerRect, resolvedConfig, typeface, cal, weather)
+      ClockStyleId.NEUMORPH_SCULPT -> ClockAdvancedStyles.drawNeumorphSculpt(canvas, innerRect, resolvedConfig, typeface, cal, weather)
+      ClockStyleId.CYBER_HUD -> drawCyberHud(canvas, innerRect, resolvedConfig, typeface, cal)
+      ClockStyleId.RETRO_FLIP -> drawRetroFlip(canvas, innerRect, resolvedConfig, typeface, cal)
+      ClockStyleId.GLASS_PILL -> drawGlassPill(canvas, innerRect, resolvedConfig, typeface, cal)
+      ClockStyleId.BRUTALIST_POSTER -> drawBrutalistPoster(canvas, width, height, cornerPx, resolvedConfig.let { innerRect }, resolvedConfig, typeface, cal)
+      ClockStyleId.TERMINAL_MONO -> drawTerminalMono(canvas, innerRect, resolvedConfig, typeface, cal)
+      ClockStyleId.EDITORIAL_SERIF -> drawEditorialSerif(canvas, innerRect, resolvedConfig, typeface, cal)
       ClockStyleId.ANALOG_SWISS,
       ClockStyleId.ANALOG_CHRONO,
       ClockStyleId.ANALOG_BAUHAUS,
       ClockStyleId.ANALOG_ORBIT,
-      ClockStyleId.ANALOG_ROMAN -> drawAnalogSuite(canvas, innerRect, config, typeface, cal)
-      ClockStyleId.WORD_MATRIX -> drawWordMatrix(canvas, innerRect, config, typeface, cal)
-      ClockStyleId.WORD_STATEMENT -> drawWordStatement(canvas, innerRect, config, typeface, cal)
-      ClockStyleId.WORD_DUO_BAR -> drawWordDuoBar(canvas, innerRect, config, typeface, cal)
+      ClockStyleId.ANALOG_ROMAN -> drawAnalogSuite(canvas, innerRect, resolvedConfig, typeface, cal)
+      ClockStyleId.WORD_MATRIX -> drawWordMatrix(canvas, innerRect, resolvedConfig, typeface, cal)
+      ClockStyleId.WORD_STATEMENT -> drawWordStatement(canvas, innerRect, resolvedConfig, typeface, cal)
+      ClockStyleId.WORD_DUO_BAR -> drawWordDuoBar(canvas, innerRect, resolvedConfig, typeface, cal)
+    }
+
+    ClockAnimationEffects.drawGlobalSecondsAccent(canvas, innerRect, cornerPx, resolvedConfig, displayMode, cal)
+  }
+
+  private fun drawPhotoBackdrop(
+    canvas: Canvas,
+    width: Float,
+    height: Float,
+    cornerPx: Float,
+    bmp: Bitmap,
+    config: WidgetConfig,
+  ) {
+    val rect = RectF(0f, 0f, width, height)
+    val clipPath = Path().apply { addRoundRect(rect, cornerPx, cornerPx, Path.Direction.CW) }
+    canvas.save()
+    canvas.clipPath(clipPath)
+    val scale = maxOf(width / bmp.width.toFloat(), height / bmp.height.toFloat())
+    val drawW = bmp.width * scale
+    val drawH = bmp.height * scale
+    val left = (width - drawW) / 2f
+    val top = (height - drawH) / 2f
+    val paint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG).apply {
+      alpha = (config.backgroundAlpha.coerceIn(0.25f, 1.0f) * 255).roundToInt()
+    }
+    canvas.drawBitmap(bmp, null, RectF(left, top, left + drawW, top + drawH), paint)
+    val scrim = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+      shader = LinearGradient(0f, 0f, 0f, height, Color.argb(65, 0, 0, 0), Color.argb(95, 0, 0, 0), Shader.TileMode.CLAMP)
+    }
+    canvas.drawRect(rect, scrim)
+    canvas.restore()
+    if (config.showBorder) {
+      val borderPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        style = Paint.Style.STROKE
+        strokeWidth = 2.5f
+        color = ColorUtils.setAlphaComponent(config.borderColor, 110)
+      }
+      canvas.drawRoundRect(RectF(1.5f, 1.5f, width - 1.5f, height - 1.5f), cornerPx, cornerPx, borderPaint)
     }
   }
 
@@ -137,20 +276,16 @@ object ClockCanvasRenderer {
     height: Float,
     cornerPx: Float,
     config: WidgetConfig,
+    fillMode: BackgroundFillMode,
   ) {
+    if (fillMode == BackgroundFillMode.NONE || config.cardStyle == CardStyle.TRANSPARENT || config.backgroundAlpha <= 0.02f) return
     if (config.styleId == ClockStyleId.BRUTALIST_POSTER) {
-      // Offset brutalist shadow card
       val offset = (min(width, height) * 0.04f).coerceIn(4f, 12f)
       val shadowPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         color = config.accentColor
         alpha = (config.backgroundAlpha * 255).roundToInt().coerceIn(0, 255)
       }
-      canvas.drawRoundRect(
-        RectF(offset, offset, width, height),
-        cornerPx,
-        cornerPx,
-        shadowPaint,
-      )
+      canvas.drawRoundRect(RectF(offset, offset, width, height), cornerPx, cornerPx, shadowPaint)
       val cardRect = RectF(0f, 0f, width - offset, height - offset)
       val bgPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         color = config.backgroundColor
@@ -162,65 +297,60 @@ object ClockCanvasRenderer {
         val borderPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
           style = Paint.Style.STROKE
           strokeWidth = strokeW
-          color = config.foregroundColor
+          color = config.borderColor
         }
-        canvas.drawRoundRect(
-          RectF(strokeW / 2f, strokeW / 2f, cardRect.right - strokeW / 2f, cardRect.bottom - strokeW / 2f),
-          cornerPx,
-          cornerPx,
-          borderPaint,
-        )
+        canvas.drawRoundRect(RectF(strokeW / 2f, strokeW / 2f, cardRect.right - strokeW / 2f, cardRect.bottom - strokeW / 2f), cornerPx, cornerPx, borderPaint)
       }
       return
     }
 
     val rect = RectF(1f, 1f, width - 1f, height - 1f)
-    val alphaInt = (config.backgroundAlpha * 255).roundToInt().coerceIn(0, 255)
+    val effectiveAlpha = if (fillMode == BackgroundFillMode.GLASS || config.cardStyle == CardStyle.FROSTED) {
+      config.backgroundAlpha.coerceIn(0.18f, 0.56f)
+    } else {
+      config.backgroundAlpha
+    }
+    val alphaInt = (effectiveAlpha * 255).roundToInt().coerceIn(0, 255)
 
     val bgPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-      val topColor = ColorUtils.setAlphaComponent(config.backgroundColor, alphaInt)
-      val bottomColor = ColorUtils.setAlphaComponent(
-        ColorUtils.blendARGB(config.backgroundColor, config.accentColor, 0.08f),
-        alphaInt,
-      )
-      shader = LinearGradient(0f, 0f, width, height, topColor, bottomColor, Shader.TileMode.CLAMP)
+      if (fillMode == BackgroundFillMode.GRADIENT) {
+        val rad = Math.toRadians(config.gradientAngleDeg.toDouble())
+        val dx = (cos(rad) * width * 0.5f).toFloat()
+        val dy = (sin(rad) * height * 0.5f).toFloat()
+        val topColor = ColorUtils.setAlphaComponent(config.backgroundColor, alphaInt)
+        val bottomColor = ColorUtils.setAlphaComponent(config.backgroundSecondaryColor, alphaInt)
+        shader = LinearGradient(width * 0.5f - dx, height * 0.5f - dy, width * 0.5f + dx, height * 0.5f + dy, topColor, bottomColor, Shader.TileMode.CLAMP)
+      } else {
+        val topColor = ColorUtils.setAlphaComponent(config.backgroundColor, alphaInt)
+        val bottomColor = ColorUtils.setAlphaComponent(
+          ColorUtils.blendARGB(config.backgroundColor, config.accentColor, 0.08f),
+          alphaInt,
+        )
+        shader = LinearGradient(0f, 0f, width, height, topColor, bottomColor, Shader.TileMode.CLAMP)
+      }
     }
     canvas.drawRoundRect(rect, cornerPx, cornerPx, bgPaint)
 
-    // Glass sheen highlight on translucent or glass styles
-    if (config.backgroundAlpha < 0.85f || config.styleId == ClockStyleId.GLASS_PILL) {
+    if (fillMode == BackgroundFillMode.GLASS || config.backgroundAlpha < 0.85f || config.styleId == ClockStyleId.GLASS_PILL) {
       val sheenPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        shader = LinearGradient(
-          0f,
-          0f,
-          0f,
-          height * 0.55f,
-          Color.argb(46, 255, 255, 255),
-          Color.argb(0, 255, 255, 255),
-          Shader.TileMode.CLAMP,
-        )
+        shader = LinearGradient(0f, 0f, 0f, height * 0.55f, Color.argb(46, 255, 255, 255), Color.argb(0, 255, 255, 255), Shader.TileMode.CLAMP)
       }
       canvas.drawRoundRect(rect, cornerPx, cornerPx, sheenPaint)
     }
 
     if (config.showBorder && alphaInt > 10) {
       val strokeW = (min(width, height) * 0.012f).coerceIn(1.5f, 4f)
-      val borderColor = if (config.styleId == ClockStyleId.CYBER_HUD) {
+      val borderCol = if (config.styleId == ClockStyleId.CYBER_HUD) {
         ColorUtils.setAlphaComponent(config.accentColor, 150)
       } else {
-        ColorUtils.setAlphaComponent(config.foregroundColor, 45)
+        ColorUtils.setAlphaComponent(config.borderColor, 95)
       }
       val borderPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         style = Paint.Style.STROKE
         strokeWidth = strokeW
-        color = borderColor
+        color = borderCol
       }
-      canvas.drawRoundRect(
-        RectF(strokeW, strokeW, width - strokeW, height - strokeW),
-        cornerPx,
-        cornerPx,
-        borderPaint,
-      )
+      canvas.drawRoundRect(RectF(strokeW, strokeW, width - strokeW, height - strokeW), cornerPx, cornerPx, borderPaint)
     }
   }
 
@@ -267,6 +397,13 @@ object ClockCanvasRenderer {
       size *= 0.9f
     }
     return size
+  }
+
+  private fun applyFloatShadow(paint: Paint, config: WidgetConfig) {
+    if (config.cardStyle == CardStyle.TRANSPARENT || config.backgroundAlpha <= 0.05f) {
+      val alpha = (165 * config.depthIntensity.coerceAtLeast(0.45f)).roundToInt().coerceIn(0, 220)
+      paint.setShadowLayer(10f, 0f, 3f, Color.argb(alpha, 0, 0, 0))
+    }
   }
 
   // ---------------------------------------------------------------------------
@@ -334,6 +471,7 @@ object ClockCanvasRenderer {
       this.typeface = typeface
       color = config.foregroundColor
       textAlign = Paint.Align.CENTER
+      applyFloatShadow(this, config)
     }
     val targetH = if (isCompact) h * 0.66f else h * 0.48f
     val targetSize = fitTextSize(
@@ -401,16 +539,20 @@ object ClockCanvasRenderer {
     val leftTile = RectF(tilesRect.left, tilesRect.top, tilesRect.left + tileW, tilesRect.bottom)
     val rightTile = RectF(leftTile.right + gap, tilesRect.top, tilesRect.right, tilesRect.bottom)
 
-    val tileColor = ColorUtils.blendARGB(config.backgroundColor, config.foregroundColor, 0.08f)
-    val tilePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = tileColor }
-    val tileRadius = (minD * 0.10f).coerceIn(6f, 20f)
-    canvas.drawRoundRect(leftTile, tileRadius, tileRadius, tilePaint)
-    canvas.drawRoundRect(rightTile, tileRadius, tileRadius, tilePaint)
+    if (config.cardStyle != CardStyle.TRANSPARENT && config.backgroundAlpha > 0.02f) {
+      val tileColor = ColorUtils.blendARGB(config.backgroundColor, config.foregroundColor, 0.08f)
+      val tilePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = tileColor }
+      val tileRadius = (minD * 0.10f).coerceIn(6f, 20f)
+      canvas.drawRoundRect(leftTile, tileRadius, tileRadius, tilePaint)
+      canvas.drawRoundRect(rightTile, tileRadius, tileRadius, tilePaint)
+    }
 
+    val tileRadius = (minD * 0.10f).coerceIn(6f, 20f)
     val numPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
       this.typeface = typeface
       color = config.foregroundColor
       textAlign = Paint.Align.CENTER
+      applyFloatShadow(this, config)
     }
     val hh = formattedHours(cal, config.is24Hour)
     val mm = formattedMinutes(cal)
@@ -499,6 +641,7 @@ object ClockCanvasRenderer {
       this.typeface = typeface
       color = config.foregroundColor
       textAlign = if (wide) Paint.Align.LEFT else Paint.Align.CENTER
+      applyFloatShadow(this, config)
     }
     val timeStr = "${formattedHours(cal, config.is24Hour)}:${formattedMinutes(cal)}"
     val maxTimeW = if (wide) w * 0.58f else w * 0.90f
@@ -682,6 +825,7 @@ object ClockCanvasRenderer {
       this.typeface = typeface
       color = config.foregroundColor
       textAlign = Paint.Align.LEFT
+      applyFloatShadow(this, config)
     }
     val timeStr = buildString {
       append(formattedHours(cal, config.is24Hour))
@@ -752,6 +896,7 @@ object ClockCanvasRenderer {
       this.typeface = typeface
       color = config.foregroundColor
       textAlign = Paint.Align.CENTER
+      applyFloatShadow(this, config)
     }
     timePaint.textSize = fitTextSize(
       timePaint,
@@ -869,17 +1014,27 @@ object ClockCanvasRenderer {
     typeface: Typeface,
     cal: Calendar,
   ) {
-    val facePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-      color = ColorUtils.blendARGB(config.backgroundColor, config.foregroundColor, 0.05f)
-    }
-    canvas.drawCircle(cx, cy, radius, facePaint)
+    if (config.cardStyle != CardStyle.TRANSPARENT && config.backgroundAlpha > 0.02f) {
+      val facePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = ColorUtils.blendARGB(config.backgroundColor, config.foregroundColor, 0.05f)
+      }
+      canvas.drawCircle(cx, cy, radius, facePaint)
 
-    val ringPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-      style = Paint.Style.STROKE
-      strokeWidth = (radius * 0.028f).coerceAtLeast(1.5f)
-      color = ColorUtils.setAlphaComponent(config.foregroundColor, 55)
+      val ringPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        style = Paint.Style.STROKE
+        strokeWidth = (radius * 0.028f).coerceAtLeast(1.5f)
+        color = ColorUtils.setAlphaComponent(config.foregroundColor, 55)
+      }
+      canvas.drawCircle(cx, cy, radius, ringPaint)
+    } else if (config.showBorder) {
+      val ringPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        style = Paint.Style.STROKE
+        strokeWidth = (radius * 0.024f).coerceAtLeast(1.5f)
+        color = ColorUtils.setAlphaComponent(config.foregroundColor, 95)
+        applyFloatShadow(this, config)
+      }
+      canvas.drawCircle(cx, cy, radius, ringPaint)
     }
-    canvas.drawCircle(cx, cy, radius, ringPaint)
 
     when (config.styleId) {
       ClockStyleId.ANALOG_BAUHAUS -> {
@@ -1053,6 +1208,7 @@ object ClockCanvasRenderer {
       color = config.foregroundColor
       strokeWidth = (radius * 0.075f).coerceAtLeast(3f)
       strokeCap = Paint.Cap.ROUND
+      applyFloatShadow(this, config)
     }
     canvas.drawLine(
       cx - (cos(hourAngle) * radius * 0.14f).toFloat(),
@@ -1066,6 +1222,7 @@ object ClockCanvasRenderer {
       color = config.foregroundColor
       strokeWidth = (radius * 0.048f).coerceAtLeast(2.2f)
       strokeCap = Paint.Cap.ROUND
+      applyFloatShadow(this, config)
     }
     canvas.drawLine(
       cx - (cos(minAngle) * radius * 0.16f).toFloat(),
@@ -1291,6 +1448,7 @@ object ClockCanvasRenderer {
     val tp = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
       this.typeface = typeface
       this.textSize = textSize
+      applyFloatShadow(this, config)
     }
     var layout = StaticLayout.Builder.obtain(ssb, 0, ssb.length, tp, w.roundToInt().coerceAtLeast(40))
       .setAlignment(Layout.Alignment.ALIGN_NORMAL)

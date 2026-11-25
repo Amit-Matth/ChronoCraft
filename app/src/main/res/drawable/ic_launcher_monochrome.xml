@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Outer horology bezel ring -->
+    <path
+        android:fillColor="#00000000"
+        android:pathData="M54,23 A31,31 0 1,0 54,85 A31,31 0 1,0 54,23 Z"
+        android:strokeWidth="3.6"
+        android:strokeColor="#FFFFFFFF" />
+    <!-- Inner dial track -->
+    <path
+        android:fillColor="#00000000"
+        android:pathData="M54,29 A25,25 0 1,0 54,79 A25,25 0 1,0 54,29 Z"
+        android:strokeWidth="1.8"
+        android:strokeColor="#FFFFFFFF" />
+    <!-- Cardinal 12, 3, 6, 9 tick marks -->
+    <path
+        android:pathData="M54,29.5 L54,34 M78.5,54 L74,54 M54,78.5 L54,74 M29.5,54 L34,54"
+        android:strokeWidth="2.8"
+        android:strokeLineCap="round"
+        android:strokeColor="#FFFFFFFF" />
+    <!-- 10:10 clock hands -->
+    <path
+        android:pathData="M54,54 L41,45.5"
+        android:strokeWidth="4.2"
+        android:strokeLineCap="round"
+        android:strokeColor="#FFFFFFFF" />
+    <path
+        android:pathData="M54,54 L70.5,42"
+        android:strokeWidth="3.4"
+        android:strokeLineCap="round"
+        android:strokeColor="#FFFFFFFF" />
+    <!-- Center arbor pin -->
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M54,50.2 A3.8,3.8 0 1,0 54,57.8 A3.8,3.8 0 1,0 54,50.2 Z" />
+    <!-- Top-left orbital accent dot -->
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M31.5,35.5 A2.6,2.6 0 1,0 31.5,40.7 A2.6,2.6 0 1,0 31.5,35.5 Z" />
+</vector>

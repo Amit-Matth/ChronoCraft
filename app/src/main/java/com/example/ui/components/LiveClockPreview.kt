@@ -2,6 +2,12 @@ package com.example.ui.components
 
 import android.graphics.BitmapFactory
 import android.net.Uri
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -24,13 +30,17 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import com.example.R
+import com.example.model.ClockAnimationStyle
+import com.example.model.DisplayMode
 import com.example.model.WallpaperOption
 import com.example.model.WeatherSnapshot
 import com.example.model.WidgetConfig
 import com.example.widget.ClockCanvasRenderer
+import java.util.Calendar
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
+import kotlin.math.roundToInt
 
 @Composable
 fun rememberLiveClockMillis(intervalMs: Long = 1000L): Long {
@@ -45,14 +55,50 @@ fun rememberLiveClockMillis(intervalMs: Long = 1000L): Long {
   return now
 }
 
+fun computeDisplayTimeMillis(liveMillis: Long, timeTravelMinutesOfDay: Int?): Long {
+  if (timeTravelMinutesOfDay == null) return liveMillis
+  val cal = Calendar.getInstance().apply {
+    timeInMillis = liveMillis
+    set(Calendar.HOUR_OF_DAY, (timeTravelMinutesOfDay / 60).coerceIn(0, 23))
+    set(Calendar.MINUTE, (timeTravelMinutesOfDay % 60).coerceIn(0, 59))
+  }
+  return cal.timeInMillis
+}
+
 @Composable
 fun LiveClockCanvas(
   config: WidgetConfig,
   timeMillis: Long,
   modifier: Modifier = Modifier,
   weather: WeatherSnapshot = WeatherSnapshot(),
+  displayMode: DisplayMode = DisplayMode.HOME_SCREEN,
+  timeTravelMinutesOfDay: Int? = null,
 ) {
   val context = LocalContext.current
+  val animateMotion =
+    config.animationsEnabled &&
+      config.animationStyle != ClockAnimationStyle.NONE &&
+      displayMode != DisplayMode.AOD
+  val durationMs = (6000f / config.animationSpeed.coerceIn(0.4f, 2.5f)).roundToInt().coerceIn(1500, 15000)
+  val animPhase = if (animateMotion) {
+    androidx.compose.runtime.key(durationMs) {
+      val transition = rememberInfiniteTransition(label = "clock_ambient_motion")
+      val phase by transition.animateFloat(
+        initialValue = 0f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+          animation = tween(durationMillis = durationMs, easing = LinearEasing),
+          repeatMode = RepeatMode.Restart,
+        ),
+        label = "ambient_phase",
+      )
+      phase
+    }
+  } else {
+    0f
+  }
+  val effectiveMillis = computeDisplayTimeMillis(timeMillis, timeTravelMinutesOfDay)
+
   Canvas(modifier = modifier) {
     if (size.width > 4f && size.height > 4f) {
       drawIntoCanvas { canvas ->
@@ -62,8 +108,10 @@ fun LiveClockCanvas(
           width = size.width,
           height = size.height,
           config = config,
-          timeMillis = timeMillis,
+          timeMillis = effectiveMillis,
           weather = weather,
+          displayMode = displayMode,
+          animPhase = animPhase,
         )
       }
     }
